@@ -42,6 +42,7 @@ def main():
     analysis = analysis_web.compute_analysis(draws, recent_window=50, max_draws=500)
     today_trend = analysis_web.compute_today_trend(draws, baseline_days=90)
     prediction = analysis_web.compute_pair_prediction(draws, recent_window=50)
+    today_analysis = analysis_web.compute_today_analysis(draws)
 
     # Compact per-number stats for the board + hot/cold/overdue.
     freq = Counter()
@@ -72,6 +73,7 @@ def main():
         ],
         "analysis": analysis,
         "today_trend": today_trend,
+        "today_analysis": today_analysis,
         "prediction": prediction,
     }
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CT Keno — Live Analysis</title>
+<title>CT Keno — Today's Analysis</title>
 <style>
 :root{--bg:#0f1419;--panel:#1a212b;--panel2:#222c39;--ink:#e8eef5;--muted:#8aa0b5;
 --line:#2c3848;--hot:#ff5a4d;--cold:#3a8dde;--accent:#ffce54}
@@ -11,7 +11,8 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif}
 header{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 h1{margin:0;font-size:20px}
-.status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-left:auto}
+a.nav{color:var(--accent);text-decoration:none;font-size:13px;margin-left:auto}
+.status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .dot{width:10px;height:10px;border-radius:50%;background:#555}
 .dot.on{background:#46c878}
 .dot.err{background:#ff5a4d}
@@ -37,61 +38,32 @@ section h2{margin:0 0 14px;font-size:16px}
 .toolbar button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
 .toolbar button.on{background:var(--accent);color:#1a1300;border-color:var(--accent);font-weight:700}
 .note{color:var(--muted);font-size:12px;margin-top:8px}
-.feed{display:flex;flex-direction:column;gap:5px;max-height:420px;overflow:auto}
-.frow{display:flex;gap:10px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
-.frow .gno{color:var(--muted);font-size:12px;min-width:70px}
-.frow .ns{display:flex;flex-wrap:wrap;gap:3px}
-.frow .n{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;background:#2a3645;border:1px solid var(--line)}
-.frow .b{margin-left:auto;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700;background:#2a3645}
-.b.x10{background:#ff4d3d;color:#fff}.b.x5{background:#ff8a3d}.b.x4{background:#e8b53a}
-.b.x3{background:#9bd24a}.b.x2{background:#4aa3d2}.b.nb{background:#3a4654}
-canvas{width:100%;height:220px;display:block}
 </style>
 </head>
 <body>
 <header>
-  <h1>CT Keno — Live Analysis</h1>
+  <h1>CT Keno — Today's Analysis</h1>
   <div class="status"><span class="dot" id="dot"></span><span id="status">loading…</span></div>
 </header>
 <div class="wrap">
   <div class="cards" id="cards"></div>
 
   <section>
-    <h2>Latest Draws</h2>
-    <div class="feed" id="feed"></div>
-  </section>
-
-  <section>
-    <h2>Number Frequency Board</h2>
-    <div class="board" id="board"></div>
-    <div class="legend"><span>cold</span><div class="bar"></div><span>hot</span></div>
-    <div class="note">Each number drawn ~<b id="exp"></b> times (uniform expectation).</div>
-  </section>
-
-  <section>
-    <h2>Hot / Cold / Overdue</h2>
-    <div class="lists">
-      <div class="list"><h3>Hot (most drawn)</h3><div class="chips" id="hot"></div></div>
-      <div class="list"><h3>Cold (least drawn)</h3><div class="chips" id="cold"></div></div>
-      <div class="list"><h3>Longest since seen</h3><div class="chips" id="overdue"></div></div>
-    </div>
-  </section>
-
-  <section>
-    <h2>Number Analysis — Decision Support</h2>
+    <h2>Number Analysis — Decision Support (today)</h2>
     <div class="toolbar">
       <button id="aFreq" class="on">Frequency</button>
       <button id="aDue">Overdue</button>
-      <button id="aRecent">Recent (50)</button>
+      <button id="aRecent">Recent</button>
       <button id="aGap">Max Gap</button>
     </div>
     <div class="board" id="aboard"></div>
     <div class="legend"><span>low</span><div class="bar"></div><span>high</span>
       <span id="aleg" style="margin-left:10px"></span></div>
+    <div class="note">Click a metric to re-color the board. Hover a number for its full stats.</div>
   </section>
 
   <section>
-    <h2>Top Combinations</h2>
+    <h2>Top Combinations (today)</h2>
     <div class="lists">
       <div class="list"><h3>Top Pairs</h3><div class="chips" id="apairs"></div></div>
       <div class="list"><h3>Top Triplets</h3><div class="chips" id="atriplets"></div></div>
@@ -100,30 +72,13 @@ canvas{width:100%;height:220px;display:block}
   </section>
 
   <section>
-    <h2>Distribution</h2>
+    <h2>Distribution (today)</h2>
     <div class="lists">
       <div class="list"><h3>By Range (10s)</h3><div class="chips" id="aranges"></div></div>
       <div class="list"><h3>Odd / Even</h3><div class="chips" id="aoddeven"></div></div>
       <div class="list"><h3>High / Low</h3><div class="chips" id="ahighlow"></div></div>
     </div>
     <div class="note" id="asum"></div>
-  </section>
-
-  <section>
-    <h2>Pair Prediction — Top Scored</h2>
-    <div class="note" id="pnote"></div>
-    <div class="lists">
-      <div class="list" style="flex:2;min-width:320px">
-        <h3>Ranked pairs</h3>
-        <div class="chips" id="ppairs" style="flex-direction:column;align-items:stretch"></div>
-      </div>
-      <div class="list">
-        <h3>#1 Pick</h3>
-        <div id="ptop" style="font-size:28px;font-weight:700;color:var(--accent)"></div>
-        <div class="note" id="ptopdetail"></div>
-      </div>
-    </div>
-    <div class="note" id="pdisclaimer"></div>
   </section>
 
   <section>
@@ -162,46 +117,6 @@ function heat(v, minF, maxF){
   return `rgb(${c(0)},${c(1)},${c(2)})`;
 }
 
-function render(){
-  if(!D) return;
-  const freq = Object.values(D.freq);
-  const maxF = Math.max(...freq), minF = Math.min(...freq);
-
-  document.getElementById('cards').innerHTML = [
-    ['Total draws', D.total_draws],
-    ['Newest game #', D.newest_game],
-    ['Expected / number', D.expected_per_num],
-    ['Updated', D.generated],
-  ].map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
-  document.getElementById('exp').textContent = D.expected_per_num;
-
-  // frequency board
-  document.getElementById('board').innerHTML = Array.from({length:80},(_,i)=>i+1).map(n=>{
-    const v = D.freq[n];
-    return `<div class="cell" style="background:${heat(v,minF,maxF)}"><span class="num">${n}</span><span class="cnt">${v}</span></div>`;
-  }).join('');
-
-  // hot/cold/overdue
-  const arr = Array.from({length:80},(_,i)=>i+1);
-  const byFreq = [...arr].sort((a,b)=>D.freq[b]-D.freq[a]);
-  const byOver = [...arr].sort((a,b)=>D.last_seen[b]-D.last_seen[a]);
-  const chip = (n,v)=>`<span class="chip">#${n} <b>${v}</b></span>`;
-  document.getElementById('hot').innerHTML = byFreq.slice(0,10).map(n=>chip(n,D.freq[n])).join('');
-  document.getElementById('cold').innerHTML = byFreq.slice(-10).map(n=>chip(n,D.freq[n])).join('');
-  document.getElementById('overdue').innerHTML = byOver.slice(0,10).map(n=>chip(n,D.last_seen[n]+' ago')).join('');
-
-  // latest draws feed
-  document.getElementById('feed').innerHTML = (D.latest_draws||[]).map(d=>{
-    const ns = d.numbers.map(n=>`<span class="n">${n}</span>`).join('');
-    const bcls = d.bonus==='No Bonus'?'nb':('x'+d.bonus.replace('X',''));
-    return `<div class="frow"><span class="gno">#${d.game_no}</span><span class="ns">${ns}</span><span class="b ${bcls}">${d.bonus}</span></div>`;
-  }).join('');
-
-  renderAnalysis(D.analysis);
-  renderPrediction(D.prediction);
-  renderToday(D.today_trend);
-}
-
 function renderAnalysis(a){
   if(!a || !a.numbers) return;
   const nums = a.numbers;
@@ -237,24 +152,11 @@ function renderAnalysis(a){
     `<span class="chip">Low (1-40) <b>${hl.low}</b> <span style="color:var(--muted)">${(hl.low/hlTotal*100).toFixed(1)}%</span></span>`;
   document.getElementById('asum').textContent =
     `Draw sum: min ${a.sum_min} · avg ${a.sum_avg} · max ${a.sum_max} (over ${a.total} draws)`;
-}
 
-function renderPrediction(p){
-  if(!p || !p.top) return;
-  document.getElementById('pnote').textContent =
-    `Over ${p.total} draws · theoretical P(any pair) = ${p.p_pair_pct}% · expected ${p.expected} appearances/pair`;
-  const top = p.top[0];
-  document.getElementById('ptop').textContent = top.pair.join(' - ');
-  document.getElementById('ptopdetail').textContent =
-    `score ${top.score} · ${top.count}× (expected ${top.expected}) · z ${top.z_freq} · last ${top.last} ago`;
-  document.getElementById('ppairs').innerHTML = p.top.map((t,i)=>{
-    return `<span class="chip" style="display:flex;justify-content:space-between;gap:10px">
-      <span><b>#${i+1}</b> ${t.pair.join('-')}</span>
-      <span style="color:var(--muted)">${t.count}× · z ${t.z_freq} · last ${t.last} ago</span>
-    </span>`;
-  }).join('');
-  document.getElementById('pdisclaimer').textContent =
-    '⚠ Every pair has the same 6.01% chance each draw — these scores rank past noise, not future odds.';
+  document.getElementById('cards').innerHTML = [
+    ['Today\'s draws', a.total],
+    ['Newest game #', a.newest],
+  ].map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
 }
 
 function renderToday(t){
@@ -284,15 +186,16 @@ function renderToday(t){
   document.getElementById(id).onclick = ()=>{
     aMetric = aMetrics[id];
     ['aFreq','aDue','aRecent','aGap'].forEach(x=>document.getElementById(x).classList.toggle('on',x===id));
-    if(D) renderAnalysis(D.analysis);
+    if(D) renderAnalysis(D.today_analysis);
   };
 });
 
 fetch('data/draws.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{
   D = d;
   document.getElementById('dot').className = 'dot on';
-  document.getElementById('status').textContent = `updated ${d.generated} · ${d.total_draws} draws`;
-  render();
+  document.getElementById('status').textContent = `updated ${d.generated}`;
+  renderAnalysis(d.today_analysis);
+  renderToday(d.today_trend);
 }).catch(e=>{
   document.getElementById('dot').className = 'dot err';
   document.getElementById('status').textContent = 'failed to load data';
