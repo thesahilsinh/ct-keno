@@ -1,0 +1,14 @@
+[Unit]
+Description=CT Keno real-time dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/ct-keno-sim
+ExecStart=/usr/bin/python3 /home/ubuntu/ct-keno-sim/server.py --interval 30
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CT Keno — Live Analysis</title>
+<style>
+:root{--bg:#0f1419;--panel:#1a212b;--panel2:#222c39;--ink:#e8eef5;--muted:#8aa0b5;
+--line:#2c3848;--hot:#ff5a4d;--cold:#3a8dde;--accent:#ffce54}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif}
+header{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+h1{margin:0;font-size:20px}
+.status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-left:auto}
+.dot{width:10px;height:10px;border-radius:50%;background:#555}
+.dot.on{background:#46c878}
+.dot.err{background:#ff5a4d}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 24px 60px}
+.cards{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0 22px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 18px;min-width:150px}
+.card .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+.card .v{font-size:24px;font-weight:700;margin-top:3px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:20px}
+section h2{margin:0 0 14px;font-size:16px}
+.board{display:grid;grid-template-columns:repeat(10,1fr);gap:5px}
+.cell{aspect-ratio:1/1;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;border:1px solid rgba(255,255,255,.06);cursor:pointer}
+.cell .num{font-size:14px}.cell .cnt{font-size:10px;opacity:.85}
+.legend{display:flex;align-items:center;gap:10px;margin-top:12px;color:var(--muted);font-size:12px}
+.legend .bar{height:12px;width:200px;border-radius:6px;background:linear-gradient(90deg,#1c3a5e,#2f6f4f,#caa53a,#e8732f,#ff4d3d)}
+.lists{display:flex;gap:16px;flex-wrap:wrap}
+.list{flex:1;min-width:220px}
+.list h3{margin:0 0 8px;font-size:13px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:4px 10px;font-size:12px}
+.chip b{color:var(--accent)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.toolbar button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
+.toolbar button.on{background:var(--accent);color:#1a1300;border-color:var(--accent);font-weight:700}
+.note{color:var(--muted);font-size:12px;margin-top:8px}
+.feed{display:flex;flex-direction:column;gap:5px;max-height:420px;overflow:auto}
+.frow{display:flex;gap:10px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.frow .gno{color:var(--muted);font-size:12px;min-width:70px}
+.frow .ns{display:flex;flex-wrap:wrap;gap:3px}
+.frow .n{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;background:#2a3645;border:1px solid var(--line)}
+.frow .b{margin-left:auto;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700;background:#2a3645}
+.b.x10{background:#ff4d3d;color:#fff}.b.x5{background:#ff8a3d}.b.x4{background:#e8b53a}
+.b.x3{background:#9bd24a}.b.x2{background:#4aa3d2}.b.nb{background:#3a4654}
+canvas{width:100%;height:220px;display:block}
+</style>
+</head>
+<body>
+<header>
+  <h1>CT Keno — Live Analysis</h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="status">loading…</span></div>
+</header>
+<div class="wrap">
+  <div class="cards" id="cards"></div>
+
+  <section>
+    <h2>Latest Draws</h2>
+    <div class="feed" id="feed"></div>
+  </section>
+
+  <section>
+    <h2>Number Frequency Board</h2>
+    <div class="board" id="board"></div>
+    <div class="legend"><span>cold</span><div class="bar"></div><span>hot</span></div>
+    <div class="note">Each number drawn ~<b id="exp"></b> times (uniform expectation).</div>
+  </section>
+
+  <section>
+    <h2>Hot / Cold / Overdue</h2>
+    <div class="lists">
+      <div class="list"><h3>Hot (most drawn)</h3><div class="chips" id="hot"></div></div>
+      <div class="list"><h3>Cold (least drawn)</h3><div class="chips" id="cold"></div></div>
+      <div class="list"><h3>Longest since seen</h3><div class="chips" id="overdue"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Number Analysis — Decision Support</h2>
+    <div class="toolbar">
+      <button id="aFreq" class="on">Frequency</button>
+      <button id="aDue">Overdue</button>
+      <button id="aRecent">Recent (50)</button>
+      <button id="aGap">Max Gap</button>
+    </div>
+    <div class="board" id="aboard"></div>
+    <div class="legend"><span>low</span><div class="bar"></div><span>high</span>
+      <span id="aleg" style="margin-left:10px"></span></div>
+  </section>
+
+  <section>
+    <h2>Top Combinations</h2>
+    <div class="lists">
+      <div class="list"><h3>Top Pairs</h3><div class="chips" id="apairs"></div></div>
+      <div class="list"><h3>Top Triplets</h3><div class="chips" id="atriplets"></div></div>
+      <div class="list"><h3>Top Quads</h3><div class="chips" id="aquads"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Distribution</h2>
+    <div class="lists">
+      <div class="list"><h3>By Range (10s)</h3><div class="chips" id="aranges"></div></div>
+      <div class="list"><h3>Odd / Even</h3><div class="chips" id="aoddeven"></div></div>
+      <div class="list"><h3>High / Low</h3><div class="chips" id="ahighlow"></div></div>
+    </div>
+    <div class="note" id="asum"></div>
+  </section>
+
+  <section>
+    <h2>Pair Prediction — Top Scored</h2>
+    <div class="note" id="pnote"></div>
+    <div class="lists">
+      <div class="list" style="flex:2;min-width:320px">
+        <h3>Ranked pairs</h3>
+        <div class="chips" id="ppairs" style="flex-direction:column;align-items:stretch"></div>
+      </div>
+      <div class="list">
+        <h3>#1 Pick</h3>
+        <div id="ptop" style="font-size:28px;font-weight:700;color:var(--accent)"></div>
+        <div class="note" id="ptopdetail"></div>
+      </div>
+    </div>
+    <div class="note" id="pdisclaimer"></div>
+  </section>
+
+  <section>
+    <h2>Today's Trend — vs 3-Month Baseline</h2>
+    <div class="note" id="tnote"></div>
+    <div class="lists">
+      <div class="list">
+        <h3>Today's Pick</h3>
+        <div id="tpick" style="font-size:26px;font-weight:700;color:var(--accent)"></div>
+        <div class="note" id="tpickpair"></div>
+      </div>
+      <div class="list" style="flex:2;min-width:320px">
+        <h3>Hot numbers (trend z)</h3>
+        <div class="chips" id="tnums" style="flex-direction:column;align-items:stretch"></div>
+      </div>
+      <div class="list" style="flex:2;min-width:320px">
+        <h3>Hot pairs (trend z)</h3>
+        <div class="chips" id="tpairs" style="flex-direction:column;align-items:stretch"></div>
+      </div>
+    </div>
+    <div class="note" id="tdisclaimer"></div>
+  </section>
+</div>
+
+<script>
+let D = null;
+let aMetric = 'freq';
+const aMetrics = {aFreq:'freq', aDue:'due', aRecent:'recent', aGap:'max_gap'};
+
+function heat(v, minF, maxF){
+  const t = (v-minF)/Math.max(1,(maxF-minF));
+  const stops=[[28,58,94],[47,111,79],[202,165,58],[232,115,47],[255,77,61]];
+  const x=t*(stops.length-1), i=Math.floor(x), f=x-i;
+  const a=stops[i], b=stops[Math.min(stops.length-1,i+1)];
+  const c=k=>Math.round(a[k]+(b[k]-a[k])*f);
+  return `rgb(${c(0)},${c(1)},${c(2)})`;
+}
+
+function render(){
+  if(!D) return;
+  const freq = Object.values(D.freq);
+  const maxF = Math.max(...freq), minF = Math.min(...freq);
+
+  document.getElementById('cards').innerHTML = [
+    ['Total draws', D.total_draws],
+    ['Newest game #', D.newest_game],
+    ['Expected / number', D.expected_per_num],
+    ['Updated', D.generated],
+  ].map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  document.getElementById('exp').textContent = D.expected_per_num;
+
+  // frequency board
+  document.getElementById('board').innerHTML = Array.from({length:80},(_,i)=>i+1).map(n=>{
+    const v = D.freq[n];
+    return `<div class="cell" style="background:${heat(v,minF,maxF)}"><span class="num">${n}</span><span class="cnt">${v}</span></div>`;
+  }).join('');
+
+  // hot/cold/overdue
+  const arr = Array.from({length:80},(_,i)=>i+1);
+  const byFreq = [...arr].sort((a,b)=>D.freq[b]-D.freq[a]);
+  const byOver = [...arr].sort((a,b)=>D.last_seen[b]-D.last_seen[a]);
+  const chip = (n,v)=>`<span class="chip">#${n} <b>${v}</b></span>`;
+  document.getElementById('hot').innerHTML = byFreq.slice(0,10).map(n=>chip(n,D.freq[n])).join('');
+  document.getElementById('cold').innerHTML = byFreq.slice(-10).map(n=>chip(n,D.freq[n])).join('');
+  document.getElementById('overdue').innerHTML = byOver.slice(0,10).map(n=>chip(n,D.last_seen[n]+' ago')).join('');
+
+  // latest draws feed
+  document.getElementById('feed').innerHTML = (D.latest_draws||[]).map(d=>{
+    const ns = d.numbers.map(n=>`<span class="n">${n}</span>`).join('');
+    const bcls = d.bonus==='No Bonus'?'nb':('x'+d.bonus.replace('X',''));
+    return `<div class="frow"><span class="gno">#${d.game_no}</span><span class="ns">${ns}</span><span class="b ${bcls}">${d.bonus}</span></div>`;
+  }).join('');
+
+  renderAnalysis(D.analysis);
+  renderPrediction(D.prediction);
+  renderToday(D.today_trend);
+}
+
+function renderAnalysis(a){
+  if(!a || !a.numbers) return;
+  const nums = a.numbers;
+  const vals = Object.keys(nums).map(n=>nums[n][aMetric]);
+  const maxV = Math.max(...vals), minV = Math.min(...vals);
+  document.getElementById('aboard').innerHTML = Object.keys(nums).map(n=>{
+    const st = nums[n];
+    const v = st[aMetric];
+    const t = (v-minV)/Math.max(1,(maxV-minV));
+    const label = aMetric==='freq' ? st.freq : aMetric==='due' ? st.due : aMetric==='recent' ? st.recent : st.max_gap;
+    return `<div class="cell" style="background:${heat(t*100,0,100)}" title="freq ${st.freq} · last ${st.last_seen} · max gap ${st.max_gap} · due ${st.due} · recent ${st.recent}"><span class="num">${n}</span><span class="cnt">${label}</span></div>`;
+  }).join('');
+  document.getElementById('aleg').textContent = `metric: ${aMetric}`;
+
+  const comboChip = c => `<span class="chip">${c.combo.join('-')} <b>${c.count}×</b> <span style="color:var(--muted)">gap ${c.max_gap} · last ${c.last} ago</span></span>`;
+  document.getElementById('apairs').innerHTML = a.pairs.map(comboChip).join('');
+  document.getElementById('atriplets').innerHTML = a.triplets.map(comboChip).join('');
+  document.getElementById('aquads').innerHTML = a.quads.map(comboChip).join('');
+
+  const rng = a.ranges;
+  const rngTotal = Object.values(rng).reduce((x,y)=>x+y,0);
+  document.getElementById('aranges').innerHTML = Object.keys(rng).map(k=>{
+    const pct = (rng[k]/rngTotal*100).toFixed(1);
+    return `<span class="chip">${k} <b>${rng[k]}</b> <span style="color:var(--muted)">${pct}%</span></span>`;
+  }).join('');
+  const oe = a.odd_even, oeTotal = oe.odd+oe.even;
+  document.getElementById('aoddeven').innerHTML =
+    `<span class="chip">Odd <b>${oe.odd}</b> <span style="color:var(--muted)">${(oe.odd/oeTotal*100).toFixed(1)}%</span></span>` +
+    `<span class="chip">Even <b>${oe.even}</b> <span style="color:var(--muted)">${(oe.even/oeTotal*100).toFixed(1)}%</span></span>`;
+  const hl = a.high_low, hlTotal = hl.high+hl.low;
+  document.getElementById('ahighlow').innerHTML =
+    `<span class="chip">High (41-80) <b>${hl.high}</b> <span style="color:var(--muted)">${(hl.high/hlTotal*100).toFixed(1)}%</span></span>` +
+    `<span class="chip">Low (1-40) <b>${hl.low}</b> <span style="color:var(--muted)">${(hl.low/hlTotal*100).toFixed(1)}%</span></span>`;
+  document.getElementById('asum').textContent =
+    `Draw sum: min ${a.sum_min} · avg ${a.sum_avg} · max ${a.sum_max} (over ${a.total} draws)`;
+}
+
+function renderPrediction(p){
+  if(!p || !p.top) return;
+  document.getElementById('pnote').textContent =
+    `Over ${p.total} draws · theoretical P(any pair) = ${p.p_pair_pct}% · expected ${p.expected} appearances/pair`;
+  const top = p.top[0];
+  document.getElementById('ptop').textContent = top.pair.join(' - ');
+  document.getElementById('ptopdetail').textContent =
+    `score ${top.score} · ${top.count}× (expected ${top.expected}) · z ${top.z_freq} · last ${top.last} ago`;
+  document.getElementById('ppairs').innerHTML = p.top.map((t,i)=>{
+    return `<span class="chip" style="display:flex;justify-content:space-between;gap:10px">
+      <span><b>#${i+1}</b> ${t.pair.join('-')}</span>
+      <span style="color:var(--muted)">${t.count}× · z ${t.z_freq} · last ${t.last} ago</span>
+    </span>`;
+  }).join('');
+  document.getElementById('pdisclaimer').textContent =
+    '⚠ Every pair has the same 6.01% chance each draw — these scores rank past noise, not future odds.';
+}
+
+function renderToday(t){
+  if(!t || !t.top_numbers) return;
+  document.getElementById('tnote').textContent =
+    `Today (${t.today}): ${t.n_today} draws · baseline: ${t.n_base} draws over ${t.baseline_days} days`;
+  document.getElementById('tpick').textContent = t.pick_numbers.join(' · ');
+  document.getElementById('tpickpair').textContent =
+    `Top pair: ${t.pick_pair.join('-')} (z ${t.top_pairs[0].z})`;
+  document.getElementById('tnums').innerHTML = t.top_numbers.map((n,i)=>{
+    return `<span class="chip" style="display:flex;justify-content:space-between;gap:10px">
+      <span><b>#${i+1}</b> ${n.num}</span>
+      <span style="color:var(--muted)">today ${n.today}× (${n.today_pct}%) · base ${n.base_pct}% · z ${n.z}</span>
+    </span>`;
+  }).join('');
+  document.getElementById('tpairs').innerHTML = t.top_pairs.map((p,i)=>{
+    return `<span class="chip" style="display:flex;justify-content:space-between;gap:10px">
+      <span><b>#${i+1}</b> ${p.pair.join('-')}</span>
+      <span style="color:var(--muted)">today ${p.today}× (${p.today_pct}%) · base ${p.base_pct}% · z ${p.z}</span>
+    </span>`;
+  }).join('');
+  document.getElementById('tdisclaimer').textContent =
+    '⚠ Today\'s sample is small — a high z-score on a few dozen draws is normal random noise.';
+}
+
+['aFreq','aDue','aRecent','aGap'].forEach(id=>{
+  document.getElementById(id).onclick = ()=>{
+    aMetric = aMetrics[id];
+    ['aFreq','aDue','aRecent','aGap'].forEach(x=>document.getElementById(x).classList.toggle('on',x===id));
+    if(D) renderAnalysis(D.analysis);
+  };
+});
+
+fetch('data/draws.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{
+  D = d;
+  document.getElementById('dot').className = 'dot on';
+  document.getElementById('status').textContent = `updated ${d.generated} · ${d.total_draws} draws`;
+  render();
+}).catch(e=>{
+  document.getElementById('dot').className = 'dot err';
+  document.getElementById('status').textContent = 'failed to load data';
+});
+</script>
+</body>
+</html>

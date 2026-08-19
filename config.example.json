@@ -1,0 +1,12 @@
+{
+  "spots": 4,
+  "mode": "quickpick",
+  "picks": null,
+  "wager": 1,
+  "bonus": false,
+  "draws": 236,
+  "recent_only": true,
+  "sessions": 1000,
+  "session_draws": 20,
+  "seed": 0
+}

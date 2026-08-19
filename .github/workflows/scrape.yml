@@ -1,0 +1,37 @@
+name: Scrape Keno
+
+on:
+  schedule:
+    # every 5 minutes (GitHub's fastest free cadence)
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}   # allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Scrape and build data
+        env:
+          TZ: America/New_York
+        run: python build_data.py
+
+      - name: Commit updated data
+        run: |
+          git config user.name "keno-bot"
+          git config user.email "keno-bot@users.noreply.github.com"
+          git add data/draws.csv data/draws.json
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "scrape: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push
+          fi
