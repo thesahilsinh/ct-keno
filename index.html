@@ -156,6 +156,7 @@ function renderAnalysis(a){
   document.getElementById('cards').innerHTML = [
     ['Today\'s draws', a.total],
     ['Newest game #', a.newest],
+    ['Last updated', `<span style="font-size:14px;font-weight:600">${D.generated_at || D.generated}</span>`],
   ].map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
 }
 
@@ -193,7 +194,7 @@ function renderToday(t){
 fetch('data/draws.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{
   D = d;
   document.getElementById('dot').className = 'dot on';
-  document.getElementById('status').textContent = `updated ${d.generated}`;
+  document.getElementById('status').textContent = `last updated ${d.generated_at || d.generated}`;
   renderAnalysis(d.today_analysis);
   renderToday(d.today_trend);
 }).catch(e=>{
