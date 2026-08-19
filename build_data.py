@@ -6,8 +6,9 @@ The frontend (web/index.html) fetches data/draws.json and renders the dashboard.
 """
 import json
 from collections import Counter
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import scraper
 import store
@@ -61,7 +62,7 @@ def main():
 
     data = {
         "generated": date.today().isoformat(),
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        "generated_at": datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d %I:%M %p ET"),
         "total_draws": total,
         "newest_game": newest,
         "expected_per_num": round(total * 20 / 80, 1),
