@@ -277,9 +277,13 @@ def compute_analysis(draws, recent_window=50, max_draws=500):
         out = []
         for c, cnt in counts.most_common(top):
             gns = sorted(draw_nums[c])
-            mg = max(gns[i + 1] - gns[i] for i in range(len(gns) - 1)) if len(gns) > 1 else 0
+            gaps = [gns[i + 1] - gns[i] for i in range(len(gns) - 1)]
+            mg = max(gaps) if gaps else 0
+            avg = round(sum(gaps) / len(gaps), 1) if gaps else 0
+            mn = min(gaps) if gaps else 0
             lo = newest - max(gns)
-            out.append({"combo": list(c), "count": cnt, "max_gap": mg, "last": lo})
+            out.append({"combo": list(c), "count": cnt, "max_gap": mg,
+                        "avg_gap": avg, "min_gap": mn, "last": lo})
         return out
 
     pairs = combo_stats(2, 20)

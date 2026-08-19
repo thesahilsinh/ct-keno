@@ -131,7 +131,7 @@ function renderAnalysis(a){
   }).join('');
   document.getElementById('aleg').textContent = `metric: ${aMetric}`;
 
-  const comboChip = c => `<span class="chip">${c.combo.join('-')} <b>${c.count}×</b> <span style="color:var(--muted)">gap ${c.max_gap} · last ${c.last} ago</span></span>`;
+  const comboChip = c => `<span class="chip">${c.combo.join('-')} <b>${c.count}×</b> <span style="color:var(--muted)">max ${c.max_gap} · avg ${c.avg_gap} · min ${c.min_gap} · last ${c.last} ago</span></span>`;
   document.getElementById('apairs').innerHTML = a.pairs.map(comboChip).join('');
   document.getElementById('atriplets').innerHTML = a.triplets.map(comboChip).join('');
   document.getElementById('aquads').innerHTML = a.quads.map(comboChip).join('');
