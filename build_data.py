@@ -45,6 +45,13 @@ def main():
     prediction = analysis_web.compute_pair_prediction(draws, recent_window=50)
     today_analysis = analysis_web.compute_today_analysis(draws)
 
+    # Proportion vs 25% baseline (all-time + rolling windows).
+    proportion = analysis_web.compute_proportion(draws)
+    proportion_50 = analysis_web.compute_proportion(draws, window=50)
+    proportion_100 = analysis_web.compute_proportion(draws, window=100)
+    proportion_200 = analysis_web.compute_proportion(draws, window=200)
+    proportion_1000 = analysis_web.compute_proportion(draws, window=1000)
+
     # Compact per-number stats for the board + hot/cold/overdue.
     freq = Counter()
     last_seen = {}
@@ -77,6 +84,11 @@ def main():
         "today_trend": today_trend,
         "today_analysis": today_analysis,
         "prediction": prediction,
+        "proportion": proportion,
+        "proportion_50": proportion_50,
+        "proportion_100": proportion_100,
+        "proportion_200": proportion_200,
+        "proportion_1000": proportion_1000,
     }
 
     OUT.parent.mkdir(parents=True, exist_ok=True)

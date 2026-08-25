@@ -323,3 +323,50 @@ def compute_analysis(draws, recent_window=50, max_draws=500):
         "sum_max": max(sums) if sums else 0,
         "sum_avg": round(sum(sums) / len(sums), 1) if sums else 0,
     }
+
+
+def compute_proportion(draws, window=None):
+    """Per-number observed hit rate vs the 25% theoretical baseline.
+
+    In Keno, 20 of 80 numbers are drawn each game, so every number has a
+    25% chance of appearing in any single draw. Over N draws the expected
+    count for each number is N * 0.25. This returns each number's observed
+    proportion and its deviation from that baseline.
+
+    `window`: if set, only the most recent `window` draws are counted
+    (rolling proportion). If None, all draws are counted.
+
+    Returns a dict:
+      { "window": window, "total_draws": N, "baseline_pct": 25.0,
+        "numbers": [ {num, freq, proportion_pct, deviation_pct}, ... ] }
+    where `numbers` is sorted by deviation_pct ASCENDING (most below 25% first).
+    """
+    if not draws:
+        return None
+    draws = sorted(draws, key=lambda d: d["game_no"], reverse=True)
+    if window:
+        draws = draws[:window]
+    total = len(draws)
+    if total == 0:
+        return None
+    freq = Counter()
+    for d in draws:
+        for n in d["numbers"]:
+            freq[n] += 1
+    out = []
+    for n in range(1, 81):
+        f = freq.get(n, 0)
+        prop = f / total * 100.0
+        out.append({
+            "num": n,
+            "freq": f,
+            "proportion_pct": round(prop, 2),
+            "deviation_pct": round(prop - 25.0, 2),
+        })
+    out.sort(key=lambda x: x["deviation_pct"])
+    return {
+        "window": window,
+        "total_draws": total,
+        "baseline_pct": 25.0,
+        "numbers": out,
+    }

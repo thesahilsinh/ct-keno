@@ -82,6 +82,30 @@ section h2{margin:0 0 14px;font-size:16px}
   </section>
 
   <section>
+    <h2>Proportion vs 25% Baseline</h2>
+    <div class="toolbar">
+      <button id="pAll" class="on">All-time</button>
+      <button id="p50">Last 50</button>
+      <button id="p100">Last 100</button>
+      <button id="p200">Last 200</button>
+      <button id="p1000">Last 1000</button>
+    </div>
+    <div class="board" id="pboard"></div>
+    <div class="legend"><span>below 25%</span><div class="bar" id="pbar"></div><span>above 25%</span></div>
+    <div class="lists" style="margin-top:14px">
+      <div class="list" style="flex:2">
+        <h3>Most below 25% (your "due" candidates)</h3>
+        <div class="chips" id="plow" style="flex-direction:column;align-items:stretch"></div>
+      </div>
+      <div class="list" style="flex:2">
+        <h3>Most above 25%</h3>
+        <div class="chips" id="phigh" style="flex-direction:column;align-items:stretch"></div>
+      </div>
+    </div>
+    <div class="note" id="pnote"></div>
+  </section>
+
+  <section>
     <h2>Today's Trend — vs 3-Month Baseline</h2>
     <div class="note" id="tnote"></div>
     <div class="lists">
@@ -183,6 +207,39 @@ function renderToday(t){
     '⚠ Today\'s sample is small — a high z-score on a few dozen draws is normal random noise.';
 }
 
+let pWindow = 'proportion';
+const pWindows = {pAll:'proportion', p50:'proportion_50', p100:'proportion_100', p200:'proportion_200', p1000:'proportion_1000'};
+
+function renderProportion(p){
+  if(!p || !p.numbers) return;
+  const nums = p.numbers; // sorted most-below-25% first
+  const minD = nums[0].deviation_pct, maxD = nums[nums.length-1].deviation_pct;
+  const byNum = {};
+  nums.forEach(x => byNum[x.num] = x);
+  document.getElementById('pboard').innerHTML = Array.from({length:80},(_,i)=>{
+    const n = i+1, x = byNum[n];
+    const t = (x.deviation_pct - minD) / Math.max(1, maxD - minD);
+    // blue (below 25%) -> neutral -> red (above 25%)
+    const col = t < 0.5
+      ? `rgb(${Math.round(58+(0.5-t)*2*197)},${Math.round(141-(0.5-t)*2*51)},${Math.round(222-(0.5-t)*2*145)})`
+      : `rgb(${Math.round(255-(t-0.5)*2*197)},${Math.round(90-(t-0.5)*2*13)},${Math.round(77-(t-0.5)*2*16)})`;
+    return `<div class="cell" style="background:${col}" title="#${n}: ${x.proportion_pct}% (${x.deviation_pct>=0?'+':''}${x.deviation_pct}%)"><span class="num">${n}</span><span class="cnt">${x.proportion_pct}%</span></div>`;
+  }).join('');
+  const chip = x => `<span class="chip" style="display:flex;justify-content:space-between;gap:10px"><span><b>#${x.num}</b></span><span style="color:var(--muted)">${x.proportion_pct}% (${x.deviation_pct>=0?'+':''}${x.deviation_pct}%) · ${x.freq}×/${p.total_draws}</span></span>`;
+  document.getElementById('plow').innerHTML = nums.slice(0,10).map(chip).join('');
+  document.getElementById('phigh').innerHTML = nums.slice(-10).reverse().map(chip).join('');
+  document.getElementById('pnote').textContent =
+    `Over ${p.total_draws} draws · baseline 25% (20 of 80 per draw). ⚠ Each draw is independent — a number below 25% is NOT "due" to hit. 25% is the long-run average, not a target the draw corrects toward; a low number drifts back only because future draws keep being 25% and dilute the old shortfall.`;
+}
+
+['pAll','p50','p100','p200','p1000'].forEach(id=>{
+  document.getElementById(id).onclick = ()=>{
+    pWindow = pWindows[id];
+    ['pAll','p50','p100','p200','p1000'].forEach(x=>document.getElementById(x).classList.toggle('on',x===id));
+    if(D) renderProportion(D[pWindow]);
+  };
+});
+
 ['aFreq','aDue','aRecent','aGap'].forEach(id=>{
   document.getElementById(id).onclick = ()=>{
     aMetric = aMetrics[id];
@@ -197,6 +254,7 @@ fetch('data/draws.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{
   document.getElementById('status').textContent = `last updated ${d.generated_at || d.generated}`;
   renderAnalysis(d.today_analysis);
   renderToday(d.today_trend);
+  renderProportion(d.proportion);
 }).catch(e=>{
   document.getElementById('dot').className = 'dot err';
   document.getElementById('status').textContent = 'failed to load data';
