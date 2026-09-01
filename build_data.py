@@ -53,8 +53,11 @@ def main():
     proportion_200 = analysis_web.compute_proportion(draws, window=200)
     proportion_1000 = analysis_web.compute_proportion(draws, window=1000)
 
-    # Overdue combinations (last-seen exceeds theoretical odds).
-    overdue = analysis_web.compute_overdue(draws, window=2000)
+    # Overdue combinations (last-seen exceeds theoretical odds) — TODAY only.
+    today_str = analysis_web._today_str(draws)
+    today_draws = [d for d in draws
+                   if analysis_web._norm_date(d.get("draw_date")) == today_str]
+    overdue = analysis_web.compute_overdue(today_draws, window=len(today_draws))
 
     # Compact per-number stats for the board + hot/cold/overdue.
     freq = Counter()

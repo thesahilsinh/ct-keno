@@ -267,9 +267,11 @@ function renderCombos(a){
     const odChip = c => `<span class="chip">${c.combo.join('-')} <b>${c.count}×</b> <span style="color:var(--muted)">last ${c.last} ago (odds 1 in ${c.threshold})</span></span>`;
     document.getElementById('apairs').innerHTML = od.pairs.map(odChip).join('');
     document.getElementById('atriplets').innerHTML = od.triplets.map(odChip).join('');
-    document.getElementById('aquads').innerHTML = od.quads.map(odChip).join('');
+    document.getElementById('aquads').innerHTML = od.quads.length
+      ? od.quads.map(odChip).join('')
+      : `<span class="chip" style="color:var(--muted)">None — a quad's odds (1 in ${od.thresholds.quad}) exceed a full day's draws (~300), so no quad can be "overdue" within a single day.</span>`;
     document.getElementById('cnote').textContent =
-      `Overdue = last seen longer than the theoretical odds (pair 1 in ${od.thresholds.pair}, triplet 1 in ${od.thresholds.triplet}, quad 1 in ${od.thresholds.quad}). ⚠ "Overdue" is NOT predictive — each draw is independent; a combo past its average gap is still exactly as likely as any other.`;
+      `Overdue (today) = last seen longer than the theoretical odds (pair 1 in ${od.thresholds.pair}, triplet 1 in ${od.thresholds.triplet}, quad 1 in ${od.thresholds.quad}). ⚠ "Overdue" is NOT predictive — each draw is independent; a combo past its average gap is still exactly as likely as any other.`;
   } else {
     const comboChip = c => `<span class="chip">${c.combo.join('-')} <b>${c.count}×</b> <span style="color:var(--muted)">max ${c.max_gap} · avg ${c.avg_gap} · min ${c.min_gap} · last ${c.last} ago</span></span>`;
     document.getElementById('apairs').innerHTML = a.pairs.map(comboChip).join('');
