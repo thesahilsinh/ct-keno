@@ -17,6 +17,7 @@ import analysis_web
 ROOT = Path(__file__).resolve().parent
 STORE = ROOT / "data" / "draws.csv"
 OUT = ROOT / "data" / "draws.json"
+HIST = ROOT / "data" / "history.json"
 
 
 def main():
@@ -51,6 +52,9 @@ def main():
     proportion_100 = analysis_web.compute_proportion(draws, window=100)
     proportion_200 = analysis_web.compute_proportion(draws, window=200)
     proportion_1000 = analysis_web.compute_proportion(draws, window=1000)
+
+    # Overdue combinations (last-seen exceeds theoretical odds).
+    overdue = analysis_web.compute_overdue(draws, window=2000)
 
     # Compact per-number stats for the board + hot/cold/overdue.
     freq = Counter()
@@ -89,11 +93,21 @@ def main():
         "proportion_100": proportion_100,
         "proportion_200": proportion_200,
         "proportion_1000": proportion_1000,
+        "overdue": overdue,
     }
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(data), encoding="utf-8")
     print(f"wrote {OUT}  ({total} draws, +{added} new, newest #{newest})")
+
+    # Compact history for client-side "past draw" analysis (newest-first).
+    # Two parallel arrays: game numbers + flattened 20-number draws.
+    hist_draws = draws[:10000]
+    games = [d["game_no"] for d in hist_draws]
+    nums = [n for d in hist_draws for n in d["numbers"]]
+    HIST.write_text(json.dumps({"games": games, "nums": nums},
+                               separators=(",", ":")), encoding="utf-8")
+    print(f"wrote {HIST}  ({len(games)} draws)")
 
 
 if __name__ == "__main__":

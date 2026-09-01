@@ -370,3 +370,64 @@ def compute_proportion(draws, window=None):
         "baseline_pct": 25.0,
         "numbers": out,
     }
+
+
+def compute_overdue(draws, window=2000):
+    """Find combinations whose 'last seen' exceeds the theoretical odds.
+
+    For a k-number combination, the probability of appearing in a single draw is
+    C(80-k, 20-k) / C(80, 20). The expected gap between appearances is 1/p:
+      pair    (k=2): 1 in 16.63
+      triplet (k=3): 1 in 72.07
+      quad    (k=4): 1 in 326.44
+
+    A combination is "overdue" when it has gone longer than its expected gap
+    without appearing. Returns the top-N overdue combos per size, sorted by
+    `last` (draws since last appearance) descending.
+
+    `last` is measured in draw-index (0 = newest), so it is the true number of
+    draws since the combo last appeared (not game-number difference).
+    """
+    from math import comb
+    if not draws:
+        return None
+    draws = sorted(draws, key=lambda d: d["game_no"], reverse=True)
+    draws = draws[:window]
+    total = len(draws)
+    newest = draws[0]["game_no"]
+
+    def inv_p(k):
+        # expected gap = 1 / P(specific k-combo appears in a draw)
+        return comb(80, 20) / comb(80 - k, 20 - k)
+
+    def overdue_for(k, top=20):
+        counts = Counter()
+        last_idx = {}  # combo -> most recent index (0 = newest)
+        for idx, d in enumerate(draws):
+            for c in combinations(sorted(d["numbers"]), k):
+                counts[c] += 1
+                if c not in last_idx:
+                    last_idx[c] = idx
+        threshold = inv_p(k)
+        out = []
+        for c, cnt in counts.items():
+            last = last_idx[c]
+            if last > threshold:
+                out.append({"combo": list(c), "count": cnt, "last": last,
+                            "threshold": round(threshold, 1)})
+        out.sort(key=lambda x: -x["last"])
+        return out[:top]
+
+    return {
+        "window": window,
+        "total_draws": total,
+        "newest": newest,
+        "thresholds": {
+            "pair": round(inv_p(2), 1),
+            "triplet": round(inv_p(3), 1),
+            "quad": round(inv_p(4), 1),
+        },
+        "pairs": overdue_for(2),
+        "triplets": overdue_for(3),
+        "quads": overdue_for(4),
+    }

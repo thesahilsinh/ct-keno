@@ -37,6 +37,8 @@ section h2{margin:0 0 14px;font-size:16px}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .toolbar button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer}
 .toolbar button.on{background:var(--accent);color:#1a1300;border-color:var(--accent);font-weight:700}
+.toolbar select,.toolbar input{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px}
+.toolbar input{width:110px}
 .note{color:var(--muted);font-size:12px;margin-top:8px}
 </style>
 </head>
@@ -47,6 +49,17 @@ section h2{margin:0 0 14px;font-size:16px}
 </header>
 <div class="wrap">
   <div class="cards" id="cards"></div>
+
+  <section>
+    <h2>Past Draw Analysis</h2>
+    <div class="toolbar">
+      <input type="number" id="pastDraw" list="drawList" placeholder="draw #" min="1">
+      <datalist id="drawList"></datalist>
+      <button id="pastGo">Analyze up to this draw</button>
+      <button id="pastReset">Reset to today</button>
+    </div>
+    <div class="note" id="pastNote">Pick a past draw number to see the analysis as it stood at that point (only draws up to and including that number).</div>
+  </section>
 
   <section>
     <h2>Number Analysis — Decision Support (today)</h2>
@@ -64,11 +77,16 @@ section h2{margin:0 0 14px;font-size:16px}
 
   <section>
     <h2>Top Combinations (today)</h2>
+    <div class="toolbar">
+      <button id="cFreq" class="on">Most frequent</button>
+      <button id="cOverdue">Overdue (last &gt; odds)</button>
+    </div>
     <div class="lists">
       <div class="list"><h3>Top Pairs</h3><div class="chips" id="apairs"></div></div>
       <div class="list"><h3>Top Triplets</h3><div class="chips" id="atriplets"></div></div>
       <div class="list"><h3>Top Quads</h3><div class="chips" id="aquads"></div></div>
     </div>
+    <div class="note" id="cnote"></div>
   </section>
 
   <section>
@@ -131,6 +149,10 @@ section h2{margin:0 0 14px;font-size:16px}
 let D = null;
 let aMetric = 'freq';
 const aMetrics = {aFreq:'freq', aDue:'due', aRecent:'recent', aGap:'max_gap'};
+let cMode = 'freq';            // 'freq' | 'overdue'
+let scopeLabel = "Today's draws";
+let H = null;                  // compact history {games:[], nums:[]} (newest-first)
+let curAnalysis = null;        // the analysis currently shown (today or past)
 
 function heat(v, minF, maxF){
   const t = (v-minF)/Math.max(1,(maxF-minF));
@@ -155,10 +177,7 @@ function renderAnalysis(a){
   }).join('');
   document.getElementById('aleg').textContent = `metric: ${aMetric}`;
 
-  const comboChip = c => `<span class="chip">${c.combo.join('-')} <b>${c.count}×</b> <span style="color:var(--muted)">max ${c.max_gap} · avg ${c.avg_gap} · min ${c.min_gap} · last ${c.last} ago</span></span>`;
-  document.getElementById('apairs').innerHTML = a.pairs.map(comboChip).join('');
-  document.getElementById('atriplets').innerHTML = a.triplets.map(comboChip).join('');
-  document.getElementById('aquads').innerHTML = a.quads.map(comboChip).join('');
+  renderCombos(a);
 
   const rng = a.ranges;
   const rngTotal = Object.values(rng).reduce((x,y)=>x+y,0);
@@ -178,7 +197,7 @@ function renderAnalysis(a){
     `Draw sum: min ${a.sum_min} · avg ${a.sum_avg} · max ${a.sum_max} (over ${a.total} draws)`;
 
   document.getElementById('cards').innerHTML = [
-    ['Today\'s draws', a.total],
+    [scopeLabel, a.total],
     ['Newest game #', a.newest],
     ['Last updated', `<span style="font-size:14px;font-weight:600">${D.generated_at || D.generated}</span>`],
   ].map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
@@ -240,21 +259,155 @@ function renderProportion(p){
   };
 });
 
+// ---- combination rendering (freq vs overdue) ----
+function renderCombos(a){
+  if(cMode === 'overdue'){
+    const od = D.overdue;
+    if(!od){ document.getElementById('cnote').textContent = 'No overdue data.'; return; }
+    const odChip = c => `<span class="chip">${c.combo.join('-')} <b>${c.count}×</b> <span style="color:var(--muted)">last ${c.last} ago (odds 1 in ${c.threshold})</span></span>`;
+    document.getElementById('apairs').innerHTML = od.pairs.map(odChip).join('');
+    document.getElementById('atriplets').innerHTML = od.triplets.map(odChip).join('');
+    document.getElementById('aquads').innerHTML = od.quads.map(odChip).join('');
+    document.getElementById('cnote').textContent =
+      `Overdue = last seen longer than the theoretical odds (pair 1 in ${od.thresholds.pair}, triplet 1 in ${od.thresholds.triplet}, quad 1 in ${od.thresholds.quad}). ⚠ "Overdue" is NOT predictive — each draw is independent; a combo past its average gap is still exactly as likely as any other.`;
+  } else {
+    const comboChip = c => `<span class="chip">${c.combo.join('-')} <b>${c.count}×</b> <span style="color:var(--muted)">max ${c.max_gap} · avg ${c.avg_gap} · min ${c.min_gap} · last ${c.last} ago</span></span>`;
+    document.getElementById('apairs').innerHTML = a.pairs.map(comboChip).join('');
+    document.getElementById('atriplets').innerHTML = a.triplets.map(comboChip).join('');
+    document.getElementById('aquads').innerHTML = a.quads.map(comboChip).join('');
+    document.getElementById('cnote').textContent = 'Most frequent combinations in the current scope.';
+  }
+}
+
+['cFreq','cOverdue'].forEach(id=>{
+  document.getElementById(id).onclick = ()=>{
+    cMode = (id === 'cFreq') ? 'freq' : 'overdue';
+    ['cFreq','cOverdue'].forEach(x=>document.getElementById(x).classList.toggle('on',x===id));
+    if(curAnalysis) renderCombos(curAnalysis);
+  };
+});
+
+// ---- client-side analysis recompute for past-draw scope ----
+function computeAnalysisFromDraws(draws){
+  // draws: array of {game_no, numbers} newest-first
+  const total = draws.length;
+  const newest = draws[0].game_no;
+  const freq = {}, lastSeen = {}, seen = {};
+  draws.forEach((d, idx) => {
+    d.numbers.forEach(n => {
+      freq[n] = (freq[n]||0) + 1;
+      lastSeen[n] = idx;
+      (seen[n] = seen[n] || []).push(d.game_no);
+    });
+  });
+  const numbers = {};
+  for(let n=1; n<=80; n++){
+    const gns = (seen[n]||[]).sort((a,b)=>a-b);
+    let maxGap = 0;
+    for(let i=1;i<gns.length;i++) maxGap = Math.max(maxGap, gns[i]-gns[i-1]);
+    const curGap = (n in lastSeen) ? lastSeen[n] : total;
+    numbers[n] = { freq: freq[n]||0, last_seen: curGap, max_gap: maxGap, due: maxGap>0 ? +(curGap/maxGap).toFixed(2) : 0, recent: 0 };
+  }
+  // recent window (last 50)
+  draws.slice(0,50).forEach(d => d.numbers.forEach(n => numbers[n].recent++));
+
+  // combinations
+  function comboStats(k, top){
+    const counts = {}, drawNums = {};
+    draws.forEach(d => {
+      const ns = d.numbers.slice().sort((a,b)=>a-b);
+      for(let i=0;i<ns.length;i++) for(let j=i+1;j<ns.length;j++){
+        if(k===2){ const key=ns[i]+'-'+ns[j]; counts[key]=(counts[key]||0)+1; (drawNums[key]=drawNums[key]||[]).push(d.game_no); }
+        else if(k===3){ for(let l=j+1;l<ns.length;l++){ const key=ns[i]+'-'+ns[j]+'-'+ns[l]; counts[key]=(counts[key]||0)+1; (drawNums[key]=drawNums[key]||[]).push(d.game_no); } }
+        else if(k===4){ for(let l=j+1;l<ns.length;l++) for(let m=l+1;m<ns.length;m++){ const key=ns[i]+'-'+ns[j]+'-'+ns[l]+'-'+ns[m]; counts[key]=(counts[key]||0)+1; (drawNums[key]=drawNums[key]||[]).push(d.game_no); } }
+      }
+    });
+    const entries = Object.keys(counts).map(key => {
+      const gns = drawNums[key].sort((a,b)=>a-b);
+      const gaps = []; for(let i=1;i<gns.length;i++) gaps.push(gns[i]-gns[i-1]);
+      const mg = gaps.length ? Math.max(...gaps) : 0;
+      const avg = gaps.length ? +(gaps.reduce((a,b)=>a+b,0)/gaps.length).toFixed(1) : 0;
+      const mn = gaps.length ? Math.min(...gaps) : 0;
+      return { combo: key.split('-').map(Number), count: counts[key], max_gap: mg, avg_gap: avg, min_gap: mn, last: newest - gns[gns.length-1] };
+    });
+    entries.sort((a,b)=>b.count-a.count);
+    return entries.slice(0, top);
+  }
+  const pairs = comboStats(2, 20), triplets = comboStats(3, 20), quads = comboStats(4, 20);
+
+  // distributions
+  const ranges = {}; const oe = {odd:0, even:0}; const hl = {high:0, low:0}; const sums = [];
+  const bands = [[1,10],[11,20],[21,30],[31,40],[41,50],[51,60],[61,70],[71,80]];
+  bands.forEach(b => ranges[b[0]+'-'+b[1]] = 0);
+  draws.forEach(d => {
+    const s = d.numbers.reduce((a,b)=>a+b,0); sums.push(s);
+    d.numbers.forEach(n => {
+      for(const b of bands) if(n>=b[0] && n<=b[1]){ ranges[b[0]+'-'+b[1]]++; break; }
+      if(n%2) oe.odd++; else oe.even++;
+      if(n>40) hl.high++; else hl.low++;
+    });
+  });
+  return { total, newest, numbers, pairs, triplets, quads, ranges, odd_even: oe, high_low: hl,
+           sum_min: Math.min(...sums), sum_max: Math.max(...sums), sum_avg: +(sums.reduce((a,b)=>a+b,0)/sums.length).toFixed(1) };
+}
+
+function applyPastDraw(gameNo){
+  if(!H || !H.games.length) return;
+  // find how many draws (newest-first) have game_no >= gameNo
+  let count = 0;
+  for(let i=0;i<H.games.length;i++){ if(H.games[i] >= gameNo) count++; else break; }
+  if(count === 0){ document.getElementById('pastNote').textContent = `Draw #${gameNo} not found in history (range ${H.games[H.games.length-1]}–${H.games[0]}).`; return; }
+  const draws = [];
+  for(let i=0;i<count;i++){
+    const nums = H.nums.slice(i*20, i*20+20);
+    draws.push({ game_no: H.games[i], numbers: nums });
+  }
+  curAnalysis = computeAnalysisFromDraws(draws);
+  scopeLabel = `Draws up to #${gameNo}`;
+  renderAnalysis(curAnalysis);
+  document.getElementById('pastNote').textContent =
+    `Showing analysis over ${count} draws up to and including #${gameNo}.`;
+}
+
+function resetToToday(){
+  curAnalysis = D.today_analysis;
+  scopeLabel = "Today's draws";
+  renderAnalysis(curAnalysis);
+  document.getElementById('pastDraw').value = '';
+  document.getElementById('pastNote').textContent = 'Pick a past draw number to see the analysis as it stood at that point (only draws up to and including that number).';
+}
+
+document.getElementById('pastGo').onclick = ()=>{
+  const v = parseInt(document.getElementById('pastDraw').value, 10);
+  if(!v || v < 1){ document.getElementById('pastNote').textContent = 'Enter a valid draw number.'; return; }
+  applyPastDraw(v);
+};
+document.getElementById('pastReset').onclick = resetToToday;
+document.getElementById('pastDraw').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('pastGo').click(); });
+
 ['aFreq','aDue','aRecent','aGap'].forEach(id=>{
   document.getElementById(id).onclick = ()=>{
     aMetric = aMetrics[id];
     ['aFreq','aDue','aRecent','aGap'].forEach(x=>document.getElementById(x).classList.toggle('on',x===id));
-    if(D) renderAnalysis(D.today_analysis);
+    if(curAnalysis) renderAnalysis(curAnalysis);
   };
 });
 
 fetch('data/draws.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{
   D = d;
+  curAnalysis = d.today_analysis;
   document.getElementById('dot').className = 'dot on';
   document.getElementById('status').textContent = `last updated ${d.generated_at || d.generated}`;
   renderAnalysis(d.today_analysis);
   renderToday(d.today_trend);
   renderProportion(d.proportion);
+  // load compact history for past-draw analysis
+  fetch('data/history.json',{cache:'no-store'}).then(r=>r.json()).then(h=>{
+    H = h;
+    // populate datalist with a few recent game numbers as hints
+    const dl = document.getElementById('drawList');
+    dl.innerHTML = h.games.slice(0, 200).map(g=>`<option value="${g}">`).join('');
+  }).catch(()=>{});
 }).catch(e=>{
   document.getElementById('dot').className = 'dot err';
   document.getElementById('status').textContent = 'failed to load data';
