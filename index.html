@@ -78,8 +78,8 @@ section h2{margin:0 0 14px;font-size:16px}
   <section>
     <h2>Top Combinations (today)</h2>
     <div class="toolbar">
-      <button id="cFreq" class="on">Most frequent</button>
-      <button id="cOverdue">Overdue (last &gt; odds)</button>
+      <button id="cFreq">Most frequent</button>
+      <button id="cOverdue" class="on">Overdue (last &gt; odds)</button>
     </div>
     <div class="lists">
       <div class="list"><h3>Top Pairs</h3><div class="chips" id="apairs"></div></div>
@@ -149,7 +149,7 @@ section h2{margin:0 0 14px;font-size:16px}
 let D = null;
 let aMetric = 'freq';
 const aMetrics = {aFreq:'freq', aDue:'due', aRecent:'recent', aGap:'max_gap'};
-let cMode = 'freq';            // 'freq' | 'overdue'
+let cMode = 'overdue';         // 'freq' | 'overdue' (overdue is default)
 let scopeLabel = "Today's draws";
 let H = null;                  // compact history {games:[], nums:[]} (newest-first)
 let curAnalysis = null;        // the analysis currently shown (today or past)
@@ -271,7 +271,7 @@ function renderCombos(a){
       ? od.quads.map(odChip).join('')
       : `<span class="chip" style="color:var(--muted)">None — a quad's odds (1 in ${od.thresholds.quad}) exceed a full day's draws (~300), so no quad can be "overdue" within a single day.</span>`;
     document.getElementById('cnote').textContent =
-      `Overdue (today) = last seen ${od.thresholds.pair}+ draws ago for pairs, ${od.thresholds.triplet}+ for triplets, ${od.thresholds.quad}+ for quads. Sorted from the odds threshold up to the longest gap. ${od.counts ? `(${od.counts.pairs} pairs, ${od.counts.triplets} triplets, ${od.counts.quads} quads — triplets/quads capped at 500 shown)` : ''} ⚠ "Overdue" is NOT predictive — each draw is independent; a combo past its average gap is still exactly as likely as any other.`;
+      `Overdue (today) = most frequent combos first (20, 19, 18, ...), each showing how long since it last appeared. Only combos that have gone ${od.thresholds.pair}+ draws (pairs), ${od.thresholds.triplet}+ (triplets), ${od.thresholds.quad}+ (quads) without appearing are listed. ${od.counts ? `(${od.counts.pairs} pairs, ${od.counts.triplets} triplets, ${od.counts.quads} quads — triplets/quads capped at 500 shown)` : ''} ⚠ "Overdue" is NOT predictive — each draw is independent; a combo past its average gap is still exactly as likely as any other.`;
   } else {
     const comboChip = c => `<span class="chip">${c.combo.join('-')} <b>${c.count}×</b> <span style="color:var(--muted)">max ${c.max_gap} · avg ${c.avg_gap} · min ${c.min_gap} · last ${c.last} ago</span></span>`;
     document.getElementById('apairs').innerHTML = a.pairs.map(comboChip).join('');

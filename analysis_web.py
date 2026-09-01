@@ -382,8 +382,10 @@ def compute_overdue(draws, window=2000):
       quad    (k=4): 1 in 326.44
 
     A combination is "overdue" when it has gone longer than its expected gap
-    without appearing. Returns the top-N overdue combos per size, sorted by
-    `last` (draws since last appearance) descending.
+    without appearing. Results are sorted by frequency first (most frequent
+    combo first: 20, 19, 18, ...), then by `last` (draws since last appearance)
+    descending as a tie-break — so you see the most frequent combos and, within
+    those, which have gone longest without appearing.
 
     `last` is measured in draw-index (0 = newest), so it is the true number of
     draws since the combo last appeared (not game-number difference).
@@ -415,7 +417,8 @@ def compute_overdue(draws, window=2000):
             if last >= threshold:
                 out.append({"combo": list(c), "count": cnt, "last": last,
                             "threshold": threshold})
-        out.sort(key=lambda x: x["last"])  # ascending: threshold -> max
+        # primary sort: most frequent first (20, 19, 18, ...); tie-break by last desc
+        out.sort(key=lambda x: (-x["count"], -x["last"]))
         return out, len(out)
 
     pairs, n_pairs = overdue_for(2)

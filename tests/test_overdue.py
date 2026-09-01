@@ -24,9 +24,13 @@ def test_overdue_only_returns_combos_at_or_past_threshold():
         assert c["last"] >= od["thresholds"]["quad"]
 
 
-def test_overdue_sorted_by_last_asc():
-    # ascending: threshold (16) -> max
+def test_overdue_sorted_by_frequency_first():
+    # primary sort: most frequent first (count desc), tie-break by last desc
     draws = [{"game_no": i, "numbers": list(range(1, 21))} for i in range(10, 0, -1)]
     od = compute_overdue(draws, window=2000)
-    lasts = [c["last"] for c in od["pairs"]]
-    assert lasts == sorted(lasts)
+    counts = [c["count"] for c in od["pairs"]]
+    assert counts == sorted(counts, reverse=True)
+    # within equal counts, last is descending
+    for i in range(len(od["pairs"]) - 1):
+        if od["pairs"][i]["count"] == od["pairs"][i + 1]["count"]:
+            assert od["pairs"][i]["last"] >= od["pairs"][i + 1]["last"]
