@@ -271,7 +271,7 @@ function renderCombos(a){
       ? od.quads.map(odChip).join('')
       : `<span class="chip" style="color:var(--muted)">None — a quad's odds (1 in ${od.thresholds.quad}) exceed a full day's draws (~300), so no quad can be "overdue" within a single day.</span>`;
     document.getElementById('cnote').textContent =
-      `Overdue (today) = last seen longer than the theoretical odds (pair 1 in ${od.thresholds.pair}, triplet 1 in ${od.thresholds.triplet}, quad 1 in ${od.thresholds.quad}). ⚠ "Overdue" is NOT predictive — each draw is independent; a combo past its average gap is still exactly as likely as any other.`;
+      `Overdue (today) = last seen ${od.thresholds.pair}+ draws ago for pairs, ${od.thresholds.triplet}+ for triplets, ${od.thresholds.quad}+ for quads. Sorted from the odds threshold up to the longest gap. ${od.counts ? `(${od.counts.pairs} pairs, ${od.counts.triplets} triplets, ${od.counts.quads} quads — triplets/quads capped at 500 shown)` : ''} ⚠ "Overdue" is NOT predictive — each draw is independent; a combo past its average gap is still exactly as likely as any other.`;
   } else {
     const comboChip = c => `<span class="chip">${c.combo.join('-')} <b>${c.count}×</b> <span style="color:var(--muted)">max ${c.max_gap} · avg ${c.avg_gap} · min ${c.min_gap} · last ${c.last} ago</span></span>`;
     document.getElementById('apairs').innerHTML = a.pairs.map(comboChip).join('');

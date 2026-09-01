@@ -400,7 +400,7 @@ def compute_overdue(draws, window=2000):
         # expected gap = 1 / P(specific k-combo appears in a draw)
         return comb(80, 20) / comb(80 - k, 20 - k)
 
-    def overdue_for(k, top=20):
+    def overdue_for(k):
         counts = Counter()
         last_idx = {}  # combo -> most recent index (0 = newest)
         for idx, d in enumerate(draws):
@@ -408,26 +408,31 @@ def compute_overdue(draws, window=2000):
                 counts[c] += 1
                 if c not in last_idx:
                     last_idx[c] = idx
-        threshold = inv_p(k)
+        threshold = int(inv_p(k))  # integer floor: 16 / 72 / 326
         out = []
         for c, cnt in counts.items():
             last = last_idx[c]
-            if last > threshold:
+            if last >= threshold:
                 out.append({"combo": list(c), "count": cnt, "last": last,
-                            "threshold": round(threshold, 1)})
-        out.sort(key=lambda x: -x["last"])
-        return out[:top]
+                            "threshold": threshold})
+        out.sort(key=lambda x: x["last"])  # ascending: threshold -> max
+        return out, len(out)
+
+    pairs, n_pairs = overdue_for(2)
+    triplets, n_triplets = overdue_for(3)
+    quads, n_quads = overdue_for(4)
 
     return {
         "window": window,
         "total_draws": total,
         "newest": newest,
         "thresholds": {
-            "pair": round(inv_p(2), 1),
-            "triplet": round(inv_p(3), 1),
-            "quad": round(inv_p(4), 1),
+            "pair": int(inv_p(2)),
+            "triplet": int(inv_p(3)),
+            "quad": int(inv_p(4)),
         },
-        "pairs": overdue_for(2),
-        "triplets": overdue_for(3),
-        "quads": overdue_for(4),
+        "pairs": pairs,          # full range 16 -> max (a few hundred, fine to render)
+        "triplets": triplets[:500],
+        "quads": quads[:500],
+        "counts": {"pairs": n_pairs, "triplets": n_triplets, "quads": n_quads},
     }
