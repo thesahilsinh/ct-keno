@@ -39,10 +39,21 @@ jobs:
             echo "no changes"
           else
             git commit -m "scrape: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            git push
+            git push || {
+              echo "push race lost — rebasing our scrape onto origin/main"
+              git fetch origin main
+              git rebase origin/main || {
+                # data-file conflicts: keep OUR fresh scrape (--theirs during rebase)
+                git checkout --theirs -- data/ 2>/dev/null || true
+                git add -A data/
+                GIT_EDITOR=true git rebase --continue || git rebase --abort
+              }
+              git push
+            }
           fi
 
       - name: Re-trigger in 2 minutes
+        if: always()
         env:
           PAT: ${{ secrets.PAT }}
         run: |
