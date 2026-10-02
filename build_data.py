@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 import scraper
 import store
 import analysis_web
+import sim
 
 ROOT = Path(__file__).resolve().parent
 STORE = ROOT / "data" / "draws.csv"
@@ -102,6 +103,13 @@ def main():
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(data), encoding="utf-8")
     print(f"wrote {OUT}  ({total} draws, +{added} new, newest #{newest})")
+
+    # Tactic simulator: replay the chase ladder, freeze past days, and
+    # recompute today (+yesterday, the newest RECOMPUTE_DAYS days).
+    try:
+        sim.build_sim(STORE, ROOT / "data" / "sim.json", full=False)
+    except Exception as e:
+        print(f"  [sim] FAILED: {e}")
 
     # Compact history for client-side "past draw" analysis (newest-first).
     # Two parallel arrays: game numbers + flattened 20-number draws.

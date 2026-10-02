@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CT Keno — Tactic Simulator</title>
+<style>
+:root{
+  --bg:#0f1419; --panel:#1a212b; --panel2:#222c39; --ink:#e8eef5; --muted:#8aa0b5;
+  --line:#2c3848; --hot:#ff5a4d; --cold:#3a8dde; --good:#46c878; --accent:#ffce54;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif}
+header{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+h1{margin:0;font-size:20px}
+a.nav{color:var(--accent);text-decoration:none;font-size:13px;margin-left:auto}
+.status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.dot{width:10px;height:10px;border-radius:50%;background:#555}
+.dot.on{background:var(--good)}
+.dot.err{background:var(--hot)}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 24px 60px}
+.cards{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0 22px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 18px;min-width:150px}
+.card .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+.card .v{font-size:24px;font-weight:700;margin-top:3px}
+.card .v.pos{color:var(--good)}
+.card .v.neg{color:var(--hot)}
+section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:20px}
+section h2{margin:0 0 14px;font-size:16px}
+.badge{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:3px 10px;font-size:12px;color:var(--muted);margin-left:8px;font-weight:400}
+.pair-big{font-size:30px;font-weight:800;color:var(--accent);letter-spacing:2px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--muted);text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:7px 8px;border-bottom:1px solid rgba(44,56,72,.4)}
+tr.hit td{background:rgba(70,200,120,.07)}
+tr.exhausted td{background:rgba(255,90,77,.07)}
+.num{color:var(--muted);font-size:12px}
+.right{text-align:right}
+.pos{color:var(--good)}
+.neg{color:var(--hot)}
+.muted{color:var(--muted)}
+.ev{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.evrow{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--panel2);border-radius:8px;font-size:13px}
+.ladder{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.tier{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px}
+.tier b{font-size:16px}
+.tier .sub{display:block;color:var(--muted);font-size:11px}
+.tier.live{border-color:var(--accent);background:rgba(255,206,84,.08)}
+.tier.done{opacity:.45}
+.note{color:var(--muted);font-size:12px;margin-top:8px}
+.scrollbox{max-height:420px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
+.scrollbox table{margin:0}
+.scrollbox thead th{position:sticky;top:0;background:var(--panel);z-index:2}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;flex:1;margin:0 10px}
+.bar i{display:block;height:100%}
+.pbar{display:flex;align-items:center;font-size:12px}
+canvas{width:100%;height:180px}
+@media(max-width:700px){ .card{min-width:calc(50% - 12px)} .pair-big{font-size:24px} }
+</style>
+</head>
+<body>
+<header>
+  <h1>CT Keno — Tactic Simulator</h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="status">loading…</span></div>
+  <a class="nav" href="/">← Today's Analysis</a>
+</header>
+<div class="wrap">
+  <div class="cards" id="cards"></div>
+
+  <section>
+    <h2>Right Now <span class="badge" id="nowBadge"></span></h2>
+    <div id="nowBox">…</div>
+    <div class="ladder" id="ladder"></div>
+    <div class="note" id="ladderNote"></div>
+  </section>
+
+  <section>
+    <h2>Today's Play Log</h2>
+    <div class="scrollbox">
+      <table id="events"><thead><tr>
+        <th>Draw</th><th>Pair</th><th class="right">Wager</th><th>Result</th>
+        <th class="right">Run Spend</th><th class="right">Run P&L</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+    <div class="note">Every 5 minutes the bot replays today's draws and rewrites this log. A pair that hits is banked, a new overdue pair is picked. If a pair blows the whole ladder without hitting, it is chased again with a fresh ladder — your goal is to hit it.</div>
+  </section>
+
+  <section>
+    <h2>Daily P&L Ledger</h2>
+    <div id="chart"><canvas id="cumChart" height="180"></canvas></div>
+    <div class="scrollbox">
+      <table id="ledger"><thead><tr>
+        <th>Date</th><th class="right">Draws</th><th class="right">Runs</th><th class="right">Hits</th>
+        <th class="right">Staked</th><th class="right">Won</th><th class="right">P&L</th><th>Max Wager</th><th>Pairs</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section>
+    <h2>How the Tactic Works</h2>
+    <div class="ev" id="howBox"></div>
+    <div class="note" id="evNote"></div>
+  </section>
+</div>
+
+<script>
+'use strict';
+const API = 'data/sim.json';
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => (n > 0 ? '+' : '') + '$' + Math.abs(n).toFixed(0);
+const esc = (s) => String(s);
+
+let SIM = null;
+let LEDGER = [];
+
+function setStatus(ok, msg) {
+  $('dot').className = 'dot ' + (ok ? 'on' : 'err');
+  $('status').textContent = msg;
+}
+
+function fmtPair(p) { return p ? p[0] + ' - ' + p[1] : '—'; }
+
+function renderCards() {
+  const t = SIM.totals;
+  const today = SIM.ledger.find(r => r.date === SIM.today) || {};
+  const cards = [
+    ['All-Time P&L', fmt(t.pnl), t.pnl > 0 ? 'pos' : (t.pnl < 0 ? 'neg' : '')],
+    ['All-Time Staked', '$' + t.staked, ''],
+    ['ROI', t.roi_pct + '%', t.roi_pct > 0 ? 'pos' : 'neg'],
+    ['Days Played', t.days, ''],
+    ['Hit Rate', (t.hit_rate_pct || 0) + '%', ''],
+    ['Today P&L', fmt(today.pnl || 0), (today.pnl || 0) > 0 ? 'pos' : 'neg'],
+  ];
+  $('cards').innerHTML = cards.map(([k, v, cls]) =>
+    '<div class="card"><div class="k">' + k + '</div>' +
+    '<div class="v ' + cls + '">' + v + '</div></div>').join('');
+}
+
+function renderNow() {
+  const today = SIM.ledger.find(r => r.date === SIM.today) || {};
+  const open = today.open_run;
+  const carry = today.carry;
+  $('nowBadge').textContent = SIM.today;
+  let box = '';
+  if (open) {
+    const tier = SIM.schedule[open.tier];
+    const nextUp = open.draws_at_tier >= tier.draws && open.tier + 1 < SIM.schedule.length
+      ? SIM.schedule[open.tier + 1].wager : null;
+    box =
+      '<div class="pair-big">' + fmtPair(open.pair) + '</div>' +
+      '<div class="muted">chasing since draw #' + (open.first_game || '—') +
+      ' · current wager <b>$' + tier.wager + '</b>' +
+      ' · draw ' + (open.draws_at_tier + 1) + ' of ' + tier.draws +
+      ' at this tier · down <b>$' + open.spend + '</b> so far this run' +
+      (nextUp ? ' · escalates to $' + nextUp + ' after this tier' : '') + '</div>';
+  } else if (carry) {
+    box = '<div class="pair-big">' + fmtPair(carry) + '</div>' +
+      '<div class="muted">pair still being chased (run between ladders / hit just landed — see log)</div>';
+  } else {
+    box = '<div class="pair-big">—</div><div class="muted">no active run right now</div>';
+  }
+  $('nowBox').innerHTML = box;
+  // ladder strip
+  let html = '';
+  SIM.schedule.forEach((s, i) => {
+    let cls = '';
+    if (open && i < open.tier) cls = 'done';
+    if (open && i === open.tier) cls = 'live';
+    html += '<div class="tier ' + cls + '"><b>$' + s.wager + '</b>' +
+      '<span class="sub">× ' + s.draws + ' draws · cap $' + s.cum_spend + '</span></div>';
+  });
+  $('ladder').innerHTML = html;
+  const cfg = SIM.config;
+  $('ladderNote').textContent =
+    'Rule: play a tier only while a hit stays strictly profitable — ' +
+    'spend-so-far + j×$w < $' + (cfg.payout * 1) + '×w. Wagers ' +
+    cfg.tiers.join(', ') + ' only. A hit at any allowed draw banks a profit; ' +
+    'the full ladder misses ' + SIM.schedule[SIM.schedule.length - 1].cum_spend +
+    ' dollars in ' + SIM.schedule.reduce((a, s) => a + s.draws, 0) + ' draws.';
+}
+
+function renderEvents() {
+  const today = SIM.ledger.find(r => r.date === SIM.today) || {};
+  const ev = today.events || [];
+  const tb = $('events').querySelector('tbody');
+  const rows = ev.slice().reverse().map(e => {
+    if (e.result === 'skip') {
+      return '<tr><td>#' + e.game + '</td><td class="muted">—</td><td class="right muted">—</td>' +
+        '<td class="muted">no overdue pair yet</td><td class="right muted">—</td><td class="right muted">—</td></tr>';
+    }
+    if (e.result === 'exhausted') {
+      return '<tr class="exhausted"><td>#' + e.game + '</td><td>' + fmtPair(e.pair) + '</td>' +
+        '<td class="right muted">—</td><td>ladder exhausted (-$' + e.run_spend + ') — same pair, fresh $1 ladder</td>' +
+        '<td class="right">$' + e.run_spend + '</td><td class="right neg">' + fmt(e.run_pnl) + '</td></tr>';
+    }
+    const cls = e.hit ? 'hit' : '';
+    const res = e.hit
+      ? '<span class="pos">HIT — prize $' + e.prize + '</span>'
+      : '<span class="muted">miss</span>';
+    return '<tr class="' + cls + '"><td>#' + e.game + '</td><td>' + fmtPair(e.pair) + '</td>' +
+      '<td class="right">$' + e.wager + '</td><td>' + res + '</td>' +
+      '<td class="right">$' + e.run_spend + '</td>' +
+      '<td class="right ' + (e.run_pnl >= 0 ? 'pos' : 'neg') + '">' + fmt(e.run_pnl) + '</td></tr>';
+  });
+  tb.innerHTML = rows.join('');
+}
+
+function renderLedger() {
+  const tb = $('ledger').querySelector('tbody');
+  const rows = LEDGER.map(r => {
+    const pairs = r.pairs && r.pairs.length
+      ? r.pairs.map(p => p.pair[0] + '-' + p.pair[1] +
+          (p.result === 'hit' ? '✓' : p.result === 'exhausted' ? '✗' : '…')).join(' ')
+      : '—';
+    return '<tr><td>' + r.date + '</td><td class="right">' + r.draws_played + '</td>' +
+      '<td class="right">' + r.runs + '</td><td class="right">' + r.hits + '</td>' +
+      '<td class="right">$' + r.staked + '</td><td class="right">$' + r.won + '</td>' +
+      '<td class="right ' + (r.pnl > 0 ? 'pos' : r.pnl < 0 ? 'neg' : '') + '">' + fmt(r.pnl) + '</td>' +
+      '<td>$' + r.max_wager + '</td><td class="num">' + pairs + '</td></tr>';
+  });
+  tb.innerHTML = rows.join('');
+}
+
+function renderChart() {
+  const cv = $('cumChart');
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth || 800, H = 180;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+  let cum = 0;
+  const pts = [0];
+  LEDGER.forEach(r => { cum += r.pnl; pts.push(cum); });
+  const lo = Math.min(...pts), hi = Math.max(...pts);
+  const pad = 8;
+  const span = Math.max(hi - lo, 1);
+  const x = i => pad + i * (W - 2 * pad) / Math.max(pts.length - 1, 1);
+  const y = v => H - pad - (v - lo) * (H - 2 * pad) / span;
+  // zero line
+  ctx.strokeStyle = '#2c3848'; ctx.setLineDash([4, 4]);
+  if (lo < 0 && hi > 0) { ctx.beginPath(); ctx.moveTo(0, y(0)); ctx.lineTo(W, y(0)); ctx.stroke(); }
+  ctx.setLineDash([]);
+  // line
+  ctx.strokeStyle = cum >= 0 ? '#46c878' : '#ff5a4d';
+  ctx.lineWidth = 2; ctx.beginPath();
+  pts.forEach((v, i) => i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)));
+  ctx.stroke();
+  // end label
+  ctx.fillStyle = cum >= 0 ? '#46c878' : '#ff5a4d';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText(fmt(cum), Math.min(x(pts.length - 1) + 6, W - 60), y(pts[pts.length - 1]) - 6);
+}
+
+function renderHow() {
+  const cfg = SIM.config;
+  const rows = [
+    ['Payout', '$1 wager → both hit → win $11 (profit $10)'],
+    ['True odds', '1 in 16.6 draws (' + cfg.p_hit_pct + '%) — a fair payout would be $16.63'],
+    ['This game pays', '$11 → RTP 66.1%, house edge 33.9% of everything staked'],
+    ['Expected value', '−' + Math.abs(cfg.ev_per_dollar_pct) + '% per dollar, long-run'],
+    ['Ladder', '$1×10, $2×5, $3×4, $4×2, $5×2, $10×5, $20×5 = 33 draws, $200 cap'],
+    ['Pair source', 'the site\'s Overdue section — top pair by (times seen today, longest since seen)'],
+  ];
+  $('howBox').innerHTML = rows.map(([k, v]) =>
+    '<div class="evrow"><span class="muted">' + k + '</span><span>' + v + '</span></div>').join('');
+  $('evNote').textContent =
+    'Honest math: overdue pairs are NOT more likely to hit — every draw is independent, ' +
+    'the pair 35-58 has exactly the same 6.01% chance as any other pair. The ladder only ' +
+    'shapes when you lose, not whether. This tool tracks the tactic faithfully and shows ' +
+    'the real long-run cost.';
+}
+
+async function load() {
+  try {
+    const r = await fetch(API, {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    SIM = await r.json();
+    LEDGER = SIM.ledger.slice().reverse();   // newest first
+    setStatus(true, 'updated ' + SIM.today + ' · auto-refresh 5 min');
+    renderCards(); renderNow(); renderEvents(); renderLedger(); renderChart(); renderHow();
+  } catch (e) {
+    setStatus(false, 'failed to load ' + API + ' — ' + e.message);
+  }
+}
+load();
+setInterval(load, 5 * 60 * 1000);
+</script>
+</body>
+</html>

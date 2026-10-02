@@ -9,6 +9,44 @@ playing strategy would have performed — historically (exact) and probabilistic
 > (variance, losing streaks, chance a session ends profitable) — it does **not** find
 > a winning system. The "theoretical house edge" line makes this explicit.
 
+## Live sites
+
+| URL | what it is |
+|-----|------------|
+| `https://ct-keno.vercel.app/` | Today's analysis dashboard (frequencies, overdue, trends) |
+| `https://ct-keno.vercel.app/sim` | **Tactic simulator** — the pair-chase ladder with a date-wise P&L ledger |
+
+Both are static files on Vercel, redeployed automatically by the GitHub Action
+below. The Action scrapes every ~5 minutes and commits fresh `data/*.json`,
+which Vercel picks up.
+
+## The tactic simulator (`/sim`)
+
+Replays your exact tactic against every real draw, day by day:
+
+* **Pick** the top pair from the site's **Overdue** section (same algorithm the
+  dashboard uses over today's draws so far).
+* **Chase** it with the ladder $1×10 → $2×5 → $3×4 → $4×2 → $5×2 → $10×5 →
+  $20×5 (33 draws max, $200 cap). Each tier allows only as many draws as keep
+  a hit **strictly profitable** (`spend + j·w < 11·w`), e.g. after 10 misses
+  at $1 you're $10 down, and a $2 hit pays $22 → +$2.
+* **Hit** → bank the profit, pick the next overdue pair, restart at $1.
+* **Ladder exhausted without a hit** → keep chasing the SAME pair with a fresh
+  $1 ladder (the goal is to hit that number).
+* **Daily reset**: the ladder restarts at $1 at the first draw of each day.
+  An un-hit pair carries across midnight.
+* **P&L saved per day** in `data/sim.json` (the ledger on the page) — past
+  days are frozen, today is recomputed every scrape.
+
+Files: engine `sim.py`, page `sim.html`, data `data/sim.json`, tests
+`tests/test_sim.py` (`python tests/test_sim.py`).
+
+The honest math is on the page too: a specific pair hits with p = 6.01%
+(1 in 16.6 draws), a fair payout would be $16.63, the game pays $11 →
+house edge 33.9% of turnover. Over the 138-day backfill this tactic staked
+$136.6k and lost $45.7k (−33.5% ROI). The ladder shapes **when** you lose,
+not **whether**.
+
 ## Setup
 ```bash
 pip install pytest          # only needed to run tests
