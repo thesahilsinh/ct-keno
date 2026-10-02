@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CT Keno — Live Session</title>
+<style>
+:root{
+  --bg:#0f1419; --panel:#1a212b; --panel2:#222c39; --ink:#e8eef5; --muted:#8aa0b5;
+  --line:#2c3848; --hot:#ff5a4d; --cold:#3a8dde; --good:#46c878; --accent:#ffce54;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif}
+header{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+h1{margin:0;font-size:20px}
+a.nav{color:var(--accent);text-decoration:none;font-size:13px}
+.status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.dot{width:10px;height:10px;border-radius:50%;background:#555}
+.dot.on{background:var(--good)}
+.dot.err{background:var(--hot)}
+.dot.pulse{animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 24px 60px}
+.cards{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0 22px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 18px;min-width:150px;flex:1}
+.card .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+.card .v{font-size:24px;font-weight:700;margin-top:3px}
+.card .v.pos{color:var(--good)}
+.card .v.neg{color:var(--hot)}
+section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:20px}
+section h2{margin:0 0 14px;font-size:16px}
+.badge{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:3px 10px;font-size:12px;color:var(--muted);margin-left:8px;font-weight:400}
+.pair-big{font-size:44px;font-weight:800;color:var(--accent);letter-spacing:3px;line-height:1.1}
+.nowgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
+.nowcell{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.nowcell .k{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.6px}
+.nowcell .v{font-size:19px;font-weight:700;margin-top:2px}
+.ladder{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.tier{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;text-align:center}
+.tier b{font-size:16px;display:block}
+.tier .sub{display:block;color:var(--muted);font-size:11px}
+.tier.live{border-color:var(--accent);background:rgba(255,206,84,.08)}
+.tier.done{opacity:.4}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--muted);text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:7px 8px;border-bottom:1px solid rgba(44,56,72,.4)}
+tr.hit td{background:rgba(70,200,120,.07)}
+tr.exhausted td{background:rgba(255,90,77,.07)}
+.right{text-align:right}
+.pos{color:var(--good)}
+.neg{color:var(--hot)}
+.muted{color:var(--muted)}
+.num{color:var(--muted);font-size:12px}
+.scrollbox{max-height:380px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
+.scrollbox table{margin:0}
+.scrollbox thead th{position:sticky;top:0;background:var(--panel);z-index:2}
+canvas{width:100%;height:160px}
+.evrow{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--panel2);border-radius:8px;font-size:13px;margin-bottom:6px}
+.note{color:var(--muted);font-size:12px;margin-top:8px}
+.warn{border-color:rgba(255,90,77,.4)}
+@media(max-width:700px){ .card{min-width:calc(50% - 12px)} .pair-big{font-size:32px} }
+</style>
+</head>
+<body>
+<header>
+  <h1>CT Keno — Live Session</h1>
+  <div class="status"><span class="dot pulse" id="dot"></span><span id="status">loading…</span></div>
+  <a class="nav" href="/sim" style="margin-left:auto">history /sim</a>
+  <a class="nav" href="/">analysis</a>
+</header>
+<div class="wrap">
+  <div class="cards" id="cards"></div>
+
+  <section>
+    <h2>Playing Right Now <span class="badge" id="started"></span></h2>
+    <div id="nowBox">…</div>
+    <div class="ladder" id="ladder"></div>
+    <div class="note" id="ladderNote"></div>
+  </section>
+
+  <section>
+    <h2>Session Play Log</h2>
+    <div class="scrollbox">
+      <table id="events"><thead><tr>
+        <th>Draw</th><th>Pair</th><th class="right">Wager</th><th>Result</th>
+        <th class="right">Run Spend</th><th class="right">Run P&L</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+    <div class="note">Newest on top. Updates every ~5 minutes when the bot scrapes the next draws. A hit banks the profit and the very next draw starts chasing the current top overdue pair.</div>
+  </section>
+
+  <section>
+    <h2>Session P&L Over Time</h2>
+    <canvas id="cumChart" height="160"></canvas>
+    <div class="scrollbox" style="margin-top:12px">
+      <table id="days"><thead><tr>
+        <th>Date</th><th class="right">Draws</th><th class="right">Runs</th><th class="right">Hits</th>
+        <th class="right">Staked</th><th class="right">Won</th><th class="right">P&L</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Closed Runs</h2>
+    <div class="scrollbox">
+      <table id="runs"><thead><tr>
+        <th>Pair</th><th>Result</th><th class="right">Draws</th><th class="right">Spend</th>
+        <th class="right">P&L</th><th>Games</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section class="warn">
+    <h2>The Honest Math</h2>
+    <div id="honestBox"></div>
+    <div class="note" id="honestNote"></div>
+  </section>
+</div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => (n > 0 ? '+' : '') + '$' + Math.abs(n);
+const fmtPair = (p) => p ? (p[0] + ' - ' + p[1]) : '—';
+let LIVE = null;
+
+function setStatus(ok, msg, pulse) {
+  $('dot').className = 'dot ' + (ok ? 'on' : 'err') + (pulse ? ' pulse' : '');
+  $('status').textContent = msg;
+}
+
+function renderCards() {
+  const s = LIVE.stats;
+  const cur = LIVE.current || {};
+  const cards = [
+    ['Session P&L', fmt(s.pnl), s.pnl > 0 ? 'pos' : (s.pnl < 0 ? 'neg' : '')],
+    ['Staked', '$' + s.staked, ''],
+    ['Won Back', '$' + s.won, ''],
+    ['Draws Played', s.draws_played, ''],
+    ['Runs / Hits', s.runs + ' / ' + s.hits, ''],
+    ['Max Ladder Losses', s.exhausted, ''],
+  ];
+  $('cards').innerHTML = cards.map(([k, v, cls]) =>
+    '<div class="card"><div class="k">' + k + '</div>' +
+    '<div class="v ' + cls + '">' + v + '</div></div>').join('');
+  $('started').textContent = 'session started ' + LIVE.start_date +
+    (LIVE.last_draw_time ? ' · last draw ' + String(LIVE.last_draw_time).replace('T', ' ').slice(0, 16) : '');
+}
+
+function renderNow() {
+  const cur = LIVE.current;
+  let box;
+  if (!cur) {
+    box = '<div class="pair-big">—</div><div class="muted">waiting for the next draw after the anchor — the session starts with the site\'s current top overdue pair</div>';
+  } else if (cur.status === 'chasing') {
+    box = '<div class="pair-big">' + fmtPair(cur.pair) + '</div>' +
+      '<div class="nowgrid">' +
+      nowCell('current wager', '$' + cur.wager) +
+      nowCell('this tier', cur.draws_at_tier + ' of ' +
+        (cur.draws_at_tier + cur.tier_draws_left) + ' draws') +
+      nowCell('run spend so far', '$' + cur.spend) +
+      nowCell('profit if it hits now', '+' + '$' + cur.profit_if_hit) +
+      (cur.next_wager ? nowCell('escalates to', '$' + cur.next_wager) : '') +
+      '</div>';
+  } else {
+    box = '<div class="pair-big">' + fmtPair(cur.pair) + '</div>' +
+      '<div class="muted">fresh $1 ladder — this pair just exhausted a full ladder, the chase continues at $1</div>';
+  }
+  $('nowBox').innerHTML = box;
+
+  let html = '';
+  const tierNow = cur ? cur.tier : -1;
+  LIVE.ladder.forEach((t, i) => {
+    let cls = '';
+    if (cur && cur.status === 'chasing') {
+      if (i < tierNow) cls = 'done';
+      if (i === tierNow) cls = 'live';
+    }
+    html += '<div class="tier ' + cls + '"><b>$' + t.wager + '</b>' +
+      '<span class="sub">× ' + t.draws + ' · invest $' + t.cum_spend +
+      ' · win $' + t.profit_min + '–$' + t.profit_max + '</span></div>';
+  });
+  $('ladder').innerHTML = html;
+  $('ladderNote').textContent = 'Wagers ' + LIVE.config.tiers.join(', ') +
+    ' only. Each tier runs only while a hit stays strictly profitable: ' +
+    'spend-so-far + j×w < $11×w. Full ladder = 33 draws, $200.';
+}
+
+function nowCell(k, v) {
+  return '<div class="nowcell"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>';
+}
+
+function renderEvents() {
+  const tb = $('events').querySelector('tbody');
+  const rows = LIVE.events.slice().reverse().map(e => {
+    if (e.result === 'skip') {
+      return '<tr><td>#' + e.game + '</td><td class="muted">—</td><td class="right muted">—</td>' +
+        '<td class="muted">no overdue pair yet</td><td class="right muted">—</td><td class="right muted">—</td></tr>';
+    }
+    if (e.result === 'exhausted') {
+      return '<tr class="exhausted"><td>#' + e.game + '</td><td>' + fmtPair(e.pair) + '</td>' +
+        '<td class="right muted">—</td><td>ladder exhausted (−$' + e.run_spend + ') — same pair, fresh $1 ladder</td>' +
+        '<td class="right">$' + e.run_spend + '</td><td class="right neg">' + fmt(e.run_pnl) + '</td>' +
+        '<td class="right muted">—</td></tr>';
+    }
+    const cls = e.hit ? 'hit' : '';
+    const res = e.hit ? '<span class="pos">HIT — prize $' + e.prize + '</span>' : '<span class="muted">miss</span>';
+    return '<tr class="' + cls + '"><td>#' + e.game + '</td><td>' + fmtPair(e.pair) + '</td>' +
+      '<td class="right">$' + e.wager + '</td><td>' + res + '</td>' +
+      '<td class="right">$' + e.run_spend + '</td>' +
+      '<td class="right ' + (e.run_pnl >= 0 ? 'pos' : 'neg') + '">' + fmt(e.run_pnl) + '</td></tr>';
+  });
+  tb.innerHTML = rows.join('');
+}
+
+function renderRuns() {
+  const tb = $('runs').querySelector('tbody');
+  const rows = LIVE.runs.slice().reverse().map(r => {
+    const cls = r.result === 'hit' ? 'hit' : 'exhausted';
+    const res = r.result === 'hit'
+      ? '<span class="pos">hit — banked</span>'
+      : '<span class="neg">exhausted — chased again at $1</span>';
+    return '<tr class="' + cls + '"><td><b>' + fmtPair(r.pair) + '</b></td><td>' + res + '</td>' +
+      '<td class="right">' + r.draws + '</td><td class="right">$' + r.spend + '</td>' +
+      '<td class="right ' + (r.pnl > 0 ? 'pos' : 'neg') + '">' + fmt(r.pnl) + '</td>' +
+      '<td class="num">#' + r.first_game + ' → #' + r.last_game + '</td></tr>';
+  });
+  tb.innerHTML = rows.join('');
+}
+
+function renderDays() {
+  const tb = $('days').querySelector('tbody');
+  const rows = LIVE.days.slice().reverse().map(d =>
+    '<tr><td>' + d.date + '</td><td class="right">' + d.draws_played + '</td>' +
+    '<td class="right">' + d.runs + '</td><td class="right">' + d.hits + '</td>' +
+    '<td class="right">$' + d.staked + '</td><td class="right">$' + d.won + '</td>' +
+    '<td class="right ' + (d.pnl > 0 ? 'pos' : 'neg') + '">' + fmt(d.pnl) + '</td></tr>');
+  tb.innerHTML = rows.join('');
+}
+
+function renderChart() {
+  const cv = $('cumChart');
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth || 800, H = 160;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+  // cumulative realized session P&L after each event (events oldest-first):
+  //  * miss        -> no realized movement (wager is inside its run)
+  //  * hit         -> run closes: prize - run_spend realized now
+  //  * exhausted   -> run closes at -run_spend realized now
+  let cum = 0;
+  const pts = [0];
+  LIVE.events.forEach(e => {
+    if (e.result === 'exhausted') cum -= e.run_spend;
+    else if (e.hit) cum += e.prize - e.run_spend;
+    pts.push(cum);
+  });
+  const lo = Math.min(...pts), hi = Math.max(...pts);
+  const pad = 10, span = Math.max(hi - lo, 1);
+  const x = i => pad + i * (W - 2 * pad) / Math.max(pts.length - 1, 1);
+  const y = v => H - pad - (v - lo) * (H - 2 * pad) / span;
+  ctx.strokeStyle = '#2c3848'; ctx.setLineDash([4, 4]);
+  if (lo < 0 && hi > 0) { ctx.beginPath(); ctx.moveTo(0, y(0)); ctx.lineTo(W, y(0)); ctx.stroke(); }
+  ctx.setLineDash([]);
+  ctx.strokeStyle = cum >= 0 ? '#46c878' : '#ff5a4d';
+  ctx.lineWidth = 2; ctx.beginPath();
+  pts.forEach((v, i) => i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)));
+  ctx.stroke();
+  ctx.fillStyle = cum >= 0 ? '#46c878' : '#ff5a4d';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText(fmt(cum), Math.min(x(pts.length - 1) + 6, W - 70), Math.max(y(pts[pts.length - 1]) - 6, 14));
+}
+
+function renderHonest() {
+  const cfg = LIVE.config;
+  const rows = [
+    ['Payout', '$1 → both hit → $11 back (profit $10)'],
+    ['True odds', '1 in 16.6 (' + cfg.p_hit_pct + '%) — fair pay would be $16.63'],
+    ['House edge', '33.9% of everything staked, long-run'],
+    ['What the ladder does', 'locks every hit at +$1 to +$100 profit; caps each miss streak at −$200'],
+    ['What it cannot do', 'make a losing game positive — "overdue" pairs hit at the same 6.01% as any other pair'],
+  ];
+  $('honestBox').innerHTML = rows.map(([k, v]) =>
+    '<div class="evrow"><span class="muted">' + k + '</span><span>' + v + '</span></div>').join('');
+  $('honestNote').textContent =
+    'Session started at draw #' + LIVE.start_game + ' and runs forward forever, replaying each new draw as it\'s scraped. ' +
+    'The /sim page shows the same tactic over the full 138-day history: −$45.7k over $136.6k staked (−33.5%). ' +
+    'This page will drift around that same slope. Small sessions can finish ahead — that\'s variance, not edge.';
+}
+
+async function load() {
+  try {
+    const r = await fetch('data/live.json', {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    LIVE = await r.json();
+    setStatus(true, 'live · updated ' + (LIVE.last_draw_time
+      ? String(LIVE.last_draw_time).replace('T', ' ').slice(0, 16) + ' ET'
+      : '—'), true);
+    renderCards(); renderNow(); renderEvents(); renderRuns(); renderDays(); renderChart(); renderHonest();
+  } catch (e) {
+    setStatus(false, 'failed: ' + e.message);
+  }
+}
+load();
+setInterval(load, 2 * 60 * 1000);
+</script>
+</body>
+</html>

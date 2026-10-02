@@ -1,42 +1,47 @@
 #!/usr/bin/env python3
 """Keno tactic simulator: 2-spot pair chase with a daily-reset wager ladder.
 
+Two outputs:
+  * data/sim.json — full-history replay: every day since the store begins,
+    frozen date-wise P&L ledger (served by /sim).
+  * data/live.json — the LIVE session: starts from a fixed anchor draw
+    ("now" at creation) and keeps running forward, draw by draw, forever
+    (served by /live). Same engine, same rules; P&L counts only the session.
+
 TACTIC (user-specified)
   * Play ONE 2-number pair at a time. Pairs come from the site's "overdue"
     section (exact port of analysis_web.compute_overdue over TODAY's draws
     so far: pairs whose draws-since-last-hit >= 16, ranked by
     (times-hit-today desc, draws-since-last-hit desc, first-seen, pair)).
     At the start of a day (nothing overdue yet in today's draws) the pick
-    falls back to the trailing overnight window.
+    falls back to the trailing overnight window. The LIVE session seeds the
+    first pick with the same-day draws that happened BEFORE the session
+    started, so its first pair is exactly the site's current top overdue.
   * Chase the pair until it HITS. The moment it hits -> close the run
-    (profitable by construction), pick a NEW top-overdue pair, keep playing.
-    A pair that hit today is never re-picked the same day.
+    (profitable by construction), pick the top-overdue pair AT THAT MOMENT,
+    keep playing. A pair that hit is never re-picked the same day.
   * If a pair goes the whole ladder without hitting -> close the run at the
-    ladder's max loss and KEEP CHASING THE SAME PAIR with a fresh $1 ladder
-    ("your goal has to hit that number").
+    ladder's max loss and KEEP CHASING THE SAME PAIR with a fresh $1 ladder.
   * An un-hit pair survives midnight (carried into the next day); the LADDER
-    resets every day at the first draw. Each day's P&L is saved to a
-    date-wise ledger.
-  * Every day resets the playing info: fresh ladder, fresh picks.
+    resets every day at the first draw. Each day's P&L is saved date-wise.
 
 LADDER (only these wagers; strictly-profitable rule prev_spend + j*w < 11*w)
-    $1 x 10 draws, $2 x 5, $3 x 4, $4 x 2, $5 x 2, $10 x 5, $20 x 5
-  = 33 draws max per run, $200 max spend per run. A hit at any allowed draw
-    leaves the run strictly profitable (e.g. 10 misses at $1 = $10 down, hit
-    at $2 pays $22 -> +$2).
+    $1 x 10 draws ($10), $2 x 5 ($20), $3 x 4 ($32), $4 x 2 ($40),
+    $5 x 2 ($50), $10 x 5 ($100), $20 x 5 ($200)
+  = 33 draws max per run, $200 max spend per run. Worst-case hit (last
+    allowed draw of a tier) banks: +$1, +$2, +$1, +$4, +$5, +$10, +$20;
+    an earlier hit banks more.
 
 PAYOUT (user-specified): $1 on the 2-spot pays $11 total (profit $10).
 Bonus multipliers in the draw data are ignored.
 
 HONESTY: 2-spot true odds are 20*19/(80*79) = 6.0127% per draw; a fair payout
-would be $16.63, the game pays $11 -> RTP 66.1%. The ladder shapes WHEN you
-lose, not WHETHER: long-run EV is negative and the ledger will show it.
+would be $16.63, the game pays $11 -> RTP 66.1%. No pair-choice or ladder
+rule changes that; the ladder shapes WHEN you lose, not WHETHER.
 
-Determinism: sim.json is a pure function of data/draws.csv (no timestamps
-inside), so the GitHub Action recomputes the newest 2 days every ~5 min and
-older days stay frozen in the ledger. A config/version change forces a full
-rebuild. Late-arriving draws for a date older than 2 days would be ignored
-(historically draws arrive within minutes, so this never bit).
+Determinism: both JSONs are pure functions of data/draws.csv (plus the
+session anchor, persisted inside data/live.json). The GitHub Action
+recomputes the newest days every ~5 min; older ledger days stay frozen.
 """
 import json
 from itertools import combinations
@@ -48,6 +53,8 @@ import analysis_web
 ROOT = Path(__file__).resolve().parent
 STORE = ROOT / "data" / "draws.csv"
 OUT = ROOT / "data" / "sim.json"
+LIVE_OUT = ROOT / "data" / "live.json"
+LIVE_EVENT_CAP = 2000          # recent events shipped to the /live page
 
 # ---- tactic configuration ----
 TIERS = [1, 2, 3, 4, 5, 10, 20]   # wager escalation (dollars)
@@ -126,23 +133,28 @@ class PairTracker:
 
 # ---------------------------------------------------------------- replay
 def replay_day(day_draws, window_before, sched, carry_pair=None,
-               payout=None):
+               payout=None, seed_day=None):
     """Simulate one day (draws ASCENDING by game_no).
 
     window_before: trailing draws (number-lists) ending just before this day
     -- the overnight fallback for the first picks of the day.
     carry_pair: the un-hit pair chasing across midnight (or None).
+    seed_day: same-day draws that already happened BEFORE this replay window
+    (used by the live session so the first pick matches the site's overdue
+    section as it stands right now). Tracked for ranking, never wagered.
 
     Returns dict with runs / open_run / events / carry_out / totals.
     """
     payout = payout or PAYOUT
     day = PairTracker()          # today's draws so far
+    for nums in (seed_day or []):
+        day.add_draw(nums)
     overnight = PairTracker()    # frozen trailing window (fallback picks)
     for nums in window_before:
         overnight.add_draw(nums)
 
     runs = []                    # closed runs
-    events = []                  # per-draw log (today only)
+    events = []                  # per-draw log
     staked = won = 0
     run = None
     pending = carry_pair         # pair to open the next run with (forced)
@@ -241,12 +253,61 @@ def replay_day(day_draws, window_before, sched, carry_pair=None,
     }
 
 
+# ------------------------------------------------------------------ helpers
+def _config():
+    return {
+        "tiers": TIERS,
+        "payout": PAYOUT,
+        "overdue_window": OVERDUE_WINDOW,
+        "overdue_threshold": OVERDUE_THRESHOLD,
+        "p_hit_pct": round(20 * 19 / (80 * 79) * 100, 4),   # 6.0127
+        "ev_per_dollar_pct": round((20 * 19 / (80 * 79) * PAYOUT - 1) * 100, 1),
+    }
+
+
+def _ladder_display(sched):
+    """Schedule + profit range per tier for the pages."""
+    out = []
+    prev = 0
+    for s in sched:
+        w, j = s["wager"], s["draws"]
+        out.append({
+            "wager": w, "draws": j, "cum_spend": s["cum_spend"],
+            "profit_min": PAYOUT * w - s["cum_spend"],   # hit on last allowed draw
+            "profit_max": PAYOUT * w - (prev + w),       # hit on first tier draw
+        })
+        prev = s["cum_spend"]
+    return out
+
+
+def _day_pairs(res, sched):
+    """(max_wager, closed+open pair summaries) for one replayed day."""
+    max_wager = 0
+    pairs_played = []
+    for r in res["runs"]:
+        max_wager = max(max_wager, sched[r["end_tier"]]["wager"])
+        pairs_played.append({
+            "pair": r["pair"], "result": r["result"], "draws": r["draws"],
+            "spend": r["spend"], "pnl": r["pnl"],
+            "first_game": r["first_game"], "last_game": r["last_game"],
+        })
+    op = res["open_run"]
+    if op:
+        max_wager = max(max_wager, sched[op["end_tier"]]["wager"])
+        pairs_played.append({
+            "pair": op["pair"], "result": "open", "draws": op["draws"],
+            "spend": op["spend"], "pnl": op["pnl"],
+            "first_game": op["first_game"], "last_game": op["last_game"],
+        })
+    return max_wager, pairs_played
+
+
 # ------------------------------------------------------------------ build
 def build_sim(store_path=STORE, out_path=OUT, full=False, today=None,
               quiet=False):
-    """Compute the ledger. Days older than the newest RECOMPUTE_DAYS are
-    frozen from a previous sim.json; today + yesterday always recompute.
-    full=True rebuilds everything from scratch."""
+    """Compute the full-history ledger. Days older than the newest
+    RECOMPUTE_DAYS are frozen from a previous sim.json; today + yesterday
+    always recompute. full=True rebuilds everything from scratch."""
     draws = store.load_draws(store_path)
     if not draws:
         raise SystemExit("no draws in store")
@@ -311,23 +372,7 @@ def build_sim(store_path=STORE, out_path=OUT, full=False, today=None,
         carry = res["carry_out"]
         n_replayed += 1
 
-        max_wager = 0
-        pairs_played = []
-        for r in res["runs"]:
-            max_wager = max(max_wager, sched[r["end_tier"]]["wager"])
-            pairs_played.append({
-                "pair": r["pair"], "result": r["result"], "draws": r["draws"],
-                "spend": r["spend"], "pnl": r["pnl"],
-                "first_game": r["first_game"], "last_game": r["last_game"],
-            })
-        op = res["open_run"]
-        if op:
-            max_wager = max(max_wager, sched[op["end_tier"]]["wager"])
-            pairs_played.append({
-                "pair": op["pair"], "result": "open", "draws": op["draws"],
-                "spend": op["spend"], "pnl": op["pnl"],
-                "first_game": op["first_game"], "last_game": op["last_game"],
-            })
+        max_wager, pairs_played = _day_pairs(res, sched)
         row = {
             "date": nd,
             "draws_played": res["draws_played"],
@@ -342,7 +387,7 @@ def build_sim(store_path=STORE, out_path=OUT, full=False, today=None,
         }
         if nd == today:
             row["events"] = res["events"]
-            row["open_run"] = op
+            row["open_run"] = res["open_run"]
         ledger.append(row)
         if not quiet and n_replayed % 20 == 0:
             print(f"  [sim] replayed {n_replayed} days... ({nd})")
@@ -366,14 +411,7 @@ def build_sim(store_path=STORE, out_path=OUT, full=False, today=None,
 
     sim = {
         "sim_version": SIM_VERSION,
-        "config": {
-            "tiers": TIERS,
-            "payout": PAYOUT,
-            "overdue_window": OVERDUE_WINDOW,
-            "overdue_threshold": OVERDUE_THRESHOLD,
-            "p_hit_pct": round(20 * 19 / (80 * 79) * 100, 4),   # 6.0127
-            "ev_per_dollar_pct": round((20 * 19 / (80 * 79) * PAYOUT - 1) * 100, 1),
-        },
+        "config": _config(),
         "schedule": sched,
         "today": today,
         "totals": tot,
@@ -393,12 +431,185 @@ def build_sim(store_path=STORE, out_path=OUT, full=False, today=None,
     return sim
 
 
+# ------------------------------------------------------------- live session
+def build_live(store_path=STORE, out_path=LIVE_OUT, quiet=False,
+               start_game=None):
+    """Build the LIVE session (data/live.json).
+
+    The session starts at a fixed anchor draw and runs forward forever:
+      * first build (no previous file): anchor = the NEXT draw after the
+        current newest — "start from now";
+      * later builds: the anchor is read back from the previous live.json,
+        so the session is stable across scrapes.
+    Every build replays the whole session from the anchor (cheap — it only
+    spans the draws since "now"), so no state can ever drift or corrupt.
+    The first pick is seeded with the same-day draws that already happened
+    before the anchor -> exactly the site's current top overdue pair.
+    """
+    draws = store.load_draws(store_path)
+    dated = [d for d in draws if analysis_web._norm_date(d.get("draw_date"))]
+    if not dated:
+        raise SystemExit("no dated draws in store")
+    dated.sort(key=lambda x: x["game_no"])
+    newest = dated[-1]["game_no"]
+
+    # anchor: persisted, else "the next draw from now"
+    if start_game is None and out_path.exists():
+        try:
+            prev = json.loads(out_path.read_text(encoding="utf-8"))
+            start_game = int(prev.get("start_game") or 0) or None
+        except Exception:
+            start_game = None
+    if start_game is None:
+        start_game = newest + 1
+
+    by_date = {}
+    for d in dated:
+        by_date.setdefault(analysis_web._norm_date(d["draw_date"]), []).append(d)
+    dates = sorted(by_date)
+
+    sched = wager_schedule()
+    session_draws = [d for d in dated if d["game_no"] >= start_game]
+
+    days = []
+    runs_all = []
+    events_all = []
+    carry = None
+    open_run = None
+    staked = won = draws_played = hits = pnl = 0
+    last_time = None
+    start_date = None
+
+    if session_draws:
+        anchor_date = analysis_web._norm_date(session_draws[0]["draw_date"])
+        start_date = anchor_date
+        for nd in [x for x in dates if x >= anchor_date]:
+            day_draws = [d for d in by_date[nd] if d["game_no"] >= start_game]
+            if not day_draws:
+                continue
+            first_g = day_draws[0]["game_no"]
+            window_before = [d["numbers"] for d in dated
+                             if d["game_no"] < first_g][-OVERDUE_WINDOW:]
+            seed = ([d["numbers"] for d in by_date[nd]
+                     if d["game_no"] < start_game]
+                    if nd == anchor_date else [])
+            res = replay_day(day_draws, window_before, sched,
+                             carry_pair=carry, seed_day=seed)
+            carry = res["carry_out"]
+            staked += res["staked"]
+            won += res["won"]
+            draws_played += res["draws_played"]
+            hits += res["hits"]
+            pnl += res["pnl"]     # realized today + today's open unrealized;
+                                  # overnight carries start a fresh ladder, so
+                                  # their day's spend lives HERE and only here
+            runs_all += res["runs"]
+            events_all += res["events"]
+            open_run = res["open_run"]
+            last_time = day_draws[-1].get("draw_time")
+
+            max_wager, pairs_played = _day_pairs(res, sched)
+            days.append({
+                "date": nd,
+                "draws_played": res["draws_played"],
+                "runs": len(res["runs"]),
+                "hits": res["hits"],
+                "staked": res["staked"],
+                "won": res["won"],
+                "pnl": res["pnl"],
+                "max_wager": max_wager,
+                "pairs": pairs_played,
+            })
+    else:
+        start_date = analysis_web._norm_date(dated[-1]["draw_date"])
+
+    # ---- current panel ----
+    current = None
+    if open_run:
+        tier = sched[open_run["tier"]]
+        current = {
+            "status": "chasing",
+            "pair": open_run["pair"],
+            "tier": open_run["tier"],
+            "wager": tier["wager"],
+            "draws_at_tier": open_run["draws_at_tier"],
+            "tier_draws_left": tier["draws"] - open_run["draws_at_tier"],
+            "spend": open_run["spend"],
+            "profit_if_hit": PAYOUT * tier["wager"] - open_run["spend"],
+            "next_wager": (sched[open_run["tier"] + 1]["wager"]
+                           if open_run["tier"] + 1 < len(sched) else None),
+            "started_game": open_run["first_game"],
+        }
+    elif carry:
+        current = {
+            "status": "fresh_ladder",
+            "pair": carry,
+            "tier": 0,
+            "wager": sched[0]["wager"],
+            "draws_at_tier": 0,
+            "tier_draws_left": sched[0]["draws"],
+            "spend": 0,
+            "profit_if_hit": PAYOUT * sched[0]["wager"],
+            "next_wager": sched[1]["wager"] if len(sched) > 1 else None,
+            "started_game": None,
+        }
+
+    exhausted = sum(1 for r in runs_all if r["result"] == "exhausted")
+    stats = {
+        "draws_played": draws_played,
+        "runs": len(runs_all),
+        "hits": hits,
+        "exhausted": exhausted,
+        "staked": staked,
+        "won": won,
+        "pnl": pnl,
+        "roi_pct": round(pnl / staked * 100, 2) if staked else 0.0,
+        "hit_rate_pct": (round(hits / len(runs_all) * 100, 2)
+                         if runs_all else None),
+        "days": len(days),
+    }
+
+    live = {
+        "start_game": start_game,
+        "start_date": start_date,
+        "last_game": session_draws[-1]["game_no"] if session_draws else None,
+        "last_draw_time": last_time,
+        "config": _config(),
+        "schedule": sched,
+        "ladder": _ladder_display(sched),
+        "stats": stats,
+        "current": current,
+        "days": days,
+        "runs": runs_all,
+        "events": events_all[-LIVE_EVENT_CAP:],
+        "open_run": open_run,
+    }
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(live, separators=(",", ":")),
+                        encoding="utf-8")
+    if not quiet:
+        cur = live["current"] or {}
+        state = (cur.get("status") or
+                 ("waiting for first draw" if not session_draws
+                  else "between pairs"))
+        print(f"  [live] wrote {out_path.name}: start #{start_game}, "
+              f"{draws_played} draws, pnl {pnl:+.0f}, "
+              f"chasing {cur.get('pair')} ({state})")
+    return live
+
+
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--full", action="store_true",
                     help="recompute every day from scratch (slow first backfill)")
+    ap.add_argument("--live", action="store_true",
+                    help="build only the live session (data/live.json)")
     ap.add_argument("--store", type=Path, default=STORE)
     ap.add_argument("--out", type=Path, default=OUT)
     a = ap.parse_args()
-    build_sim(a.store, a.out, full=a.full)
+    if a.live:
+        build_live(a.store, LIVE_OUT)
+    else:
+        build_sim(a.store, a.out, full=a.full)

@@ -108,6 +108,8 @@ def main():
     # recompute today (+yesterday, the newest RECOMPUTE_DAYS days).
     try:
         sim.build_sim(STORE, ROOT / "data" / "sim.json", full=False)
+        # LIVE session: anchored at "now", runs forward forever.
+        sim.build_live(STORE, ROOT / "data" / "live.json")
     except Exception as e:
         print(f"  [sim] FAILED: {e}")
 

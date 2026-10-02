@@ -277,6 +277,83 @@ def test_build_freeze_and_recompute():
         assert "events" in today2              # recomputed: events attached
 
 
+# ------------------------------------------------------------- live session
+def test_live_anchor_and_seed():
+    """First live build anchors at newest+1 (starts from now); the seed
+    matches the site's overdue top pair at that moment; second build keeps
+    the same anchor (stable session) and picks up new draws."""
+    import tempfile
+    draws = store.load_draws(STORE)
+    draws.sort(key=lambda d: d["game_no"], reverse=True)
+    today = analysis_web._today_str(draws)
+    day = [d for d in draws
+           if analysis_web._norm_date(d.get("draw_date")) == today]
+    site = analysis_web.compute_overdue(day, window=len(day)) if len(day) >= 20 else None
+
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "live.json"
+        live1 = sim.build_live(STORE, out, quiet=True)
+        assert live1["start_game"] == draws[0]["game_no"] + 1
+        assert live1["stats"]["draws_played"] == 0
+        assert live1["last_game"] is None
+        # rebuild -> anchor persisted
+        live2 = sim.build_live(STORE, out, quiet=True)
+        assert live2["start_game"] == live1["start_game"]
+        # anchor the session just AFTER the second-newest draw so exactly
+        # ONE real draw is in session; seed = all today's draws before it
+        anchor = draws[1]["game_no"] + 1
+        live3 = sim.build_live(STORE, out, quiet=True, start_game=anchor)
+        assert live3["stats"]["draws_played"] == 1
+        assert live3["start_game"] == anchor
+        assert live3["last_game"] == draws[0]["game_no"]
+        if site and site["pairs"]:
+            ev = live3["events"]
+            assert ev and ev[0]["wager"] == 1  # first draw at $1
+
+
+def test_live_full_session_math():
+    """A session spanning several days: P&L conservation, hit->pair-change,
+    anchor stability across rebuilds with a growing store."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "live.json"
+        draws = store.load_draws(STORE)
+        draws.sort(key=lambda d: d["game_no"], reverse=True)
+        dates = sorted({analysis_web._norm_date(d["draw_date"])
+                        for d in draws if analysis_web._norm_date(d["draw_date"])})
+        # anchor mid-history: 2 full days + part of the newest day
+        anchor_date = dates[-3]
+        anchor = min(d["game_no"] for d in draws
+                     if analysis_web._norm_date(d["draw_date"]) == anchor_date)
+        live = sim.build_live(STORE, out, quiet=True, start_game=anchor)
+        s = live["stats"]
+        assert s["days"] == 3
+        # P&L conservation: sum(day pnls) == total pnl
+        assert sum(d["pnl"] for d in live["days"]) == s["pnl"]
+        # every closed run: hit runs strictly profitable, exhausted == -200
+        for r in live["runs"]:
+            if r["result"] == "hit":
+                assert r["pnl"] > 0, r
+            elif r["result"] == "exhausted":
+                assert r["pnl"] == -200 and r["spend"] == 200
+        # events match wagered draws
+        assert s["draws_played"] == sum(1 for e in live["events"] if e.get("wager"))
+        # anchor persisted on rebuild
+        live2 = sim.build_live(STORE, out, quiet=True)
+        assert live2["start_game"] == anchor
+        # ladder display: profit ranges (hit on last allowed draw, hit on
+        # first tier draw) — verified by hand: 11w - (prev_spend + w)
+        lad = live["ladder"]
+        assert [(t["wager"], t["draws"], t["profit_min"], t["profit_max"])
+                for t in lad] == [
+            (1, 10, 1, 10), (2, 5, 2, 10), (3, 4, 1, 10),
+            (4, 2, 4, 8), (5, 2, 5, 10), (10, 5, 10, 50), (20, 5, 20, 100)]
+        # current panel shape
+        cur = live["current"]
+        assert cur and cur["pair"] and cur["wager"] in sim.TIERS
+        assert cur["profit_if_hit"] >= 1
+
+
 # ---------------------------------------------------------------- runner
 if __name__ == "__main__":
     fails = 0
