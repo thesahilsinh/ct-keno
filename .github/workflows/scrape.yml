@@ -38,7 +38,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "no changes"
           else
-            git commit -m "scrape: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git commit -m "scrape: $(date -u +%Y-%m-%dT%H:%M:%SZ) [skip vercel]"
             git push || {
               echo "push race lost — rebasing our scrape onto origin/main"
               git fetch origin main

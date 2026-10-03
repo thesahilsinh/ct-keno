@@ -1,3 +1,9 @@
 {
-  "cleanUrls": true
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/raw-data/(.*)",
+      "destination": "https://raw.githubusercontent.com/thesahilsinh/ct-keno/main/data/$1"
+    }
+  ]
 }

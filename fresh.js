@@ -8,6 +8,9 @@
   'use strict';
 
   const RAW_BASE = 'https://raw.githubusercontent.com/thesahilsinh/ct-keno/main/data/';
+  // same-origin proxy path (vercel.json rewrites /raw-data/* -> raw.githubusercontent).
+  // The deployed /data/* copies go stale between builds, so we do NOT use them.
+  const PROXY_BASE = '/raw-data/';
 
   async function grab(url) {
     const bust = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
@@ -36,7 +39,7 @@
     };
     const results = await Promise.allSettled([
       grab(RAW_BASE + name),
-      grab('data/' + name),
+      grab(PROXY_BASE + name),
     ]);
     let best = null;
     for (const res of results) {
