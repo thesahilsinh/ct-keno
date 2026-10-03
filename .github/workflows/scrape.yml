@@ -61,7 +61,7 @@ jobs:
             echo "PAT secret not set — falling back to 5-min cron only"
             exit 0
           fi
-          sleep 120
+          sleep 90
           curl -s -X POST \
             -H "Authorization: token $PAT" \
             -H "Accept: application/vnd.github.v3+json" \

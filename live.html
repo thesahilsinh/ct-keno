@@ -8,6 +8,7 @@
 :root{
   --bg:#0f1419; --panel:#1a212b; --panel2:#222c39; --ink:#e8eef5; --muted:#8aa0b5;
   --line:#2c3848; --hot:#ff5a4d; --cold:#3a8dde; --good:#46c878; --accent:#ffce54;
+  --dbl:#b48cff;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif}
@@ -27,29 +28,45 @@ a.nav{color:var(--accent);text-decoration:none;font-size:13px}
 .card .v{font-size:24px;font-weight:700;margin-top:3px}
 .card .v.pos{color:var(--good)}
 .card .v.neg{color:var(--hot)}
+.card .v.dbl{color:var(--dbl)}
+.fresh{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 18px;margin:16px 0;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.fresh b{color:var(--ink)}
+.fresh .lag.neg{color:var(--hot)}
+.fresh .lag.pos{color:var(--good)}
 section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:20px}
 section h2{margin:0 0 14px;font-size:16px}
 .badge{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:3px 10px;font-size:12px;color:var(--muted);margin-left:8px;font-weight:400}
-.pair-big{font-size:44px;font-weight:800;color:var(--accent);letter-spacing:3px;line-height:1.1}
-.nowgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
-.nowcell{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.runsgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.runbox{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.runbox.dbl{border-color:var(--dbl)}
+.pair-big{font-size:34px;font-weight:800;color:var(--accent);letter-spacing:2px;line-height:1.1}
+.runbox.dbl .pair-big{color:var(--dbl)}
+.nowgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:10px}
+.nowcell{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
 .nowcell .k{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.6px}
-.nowcell .v{font-size:19px;font-weight:700;margin-top:2px}
+.nowcell .v{font-size:17px;font-weight:700;margin-top:2px}
+.minibar{height:8px;border-radius:4px;background:var(--line);margin-top:10px;overflow:hidden}
+.minibar i{display:block;height:100%;background:var(--accent)}
+.runbox.dbl .minibar i{background:var(--dbl)}
 .ladder{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .tier{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;text-align:center}
 .tier b{font-size:16px;display:block}
 .tier .sub{display:block;color:var(--muted);font-size:11px}
 .tier.live{border-color:var(--accent);background:rgba(255,206,84,.08)}
 .tier.done{opacity:.4}
+.tier.dbl{border-color:var(--dbl)}
+.tier.dbl.live{background:rgba(180,140,255,.1)}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{color:var(--muted);text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:6px 8px;border-bottom:1px solid var(--line)}
 td{padding:7px 8px;border-bottom:1px solid rgba(44,56,72,.4)}
 tr.hit td{background:rgba(70,200,120,.07)}
 tr.exhausted td{background:rgba(255,90,77,.07)}
+tr.dbl td{background:rgba(180,140,255,.06)}
 .right{text-align:right}
 .pos{color:var(--good)}
 .neg{color:var(--hot)}
 .muted{color:var(--muted)}
+.dblc{color:var(--dbl)}
 .num{color:var(--muted);font-size:12px}
 .scrollbox{max-height:380px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
 .scrollbox table{margin:0}
@@ -58,7 +75,7 @@ canvas{width:100%;height:160px}
 .evrow{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--panel2);border-radius:8px;font-size:13px;margin-bottom:6px}
 .note{color:var(--muted);font-size:12px;margin-top:8px}
 .warn{border-color:rgba(255,90,77,.4)}
-@media(max-width:700px){ .card{min-width:calc(50% - 12px)} .pair-big{font-size:32px} }
+@media(max-width:700px){ .card{min-width:calc(50% - 12px)} .pair-big{font-size:26px} }
 </style>
 </head>
 <body>
@@ -69,11 +86,12 @@ canvas{width:100%;height:160px}
   <a class="nav" href="/">analysis</a>
 </header>
 <div class="wrap">
+  <div class="fresh" id="fresh" style="display:none"></div>
   <div class="cards" id="cards"></div>
 
   <section>
     <h2>Playing Right Now <span class="badge" id="started"></span></h2>
-    <div id="nowBox">…</div>
+    <div id="nowBox" class="runsgrid">…</div>
     <div class="ladder" id="ladder"></div>
     <div class="note" id="ladderNote"></div>
   </section>
@@ -83,10 +101,10 @@ canvas{width:100%;height:160px}
     <div class="scrollbox">
       <table id="events"><thead><tr>
         <th>Draw</th><th>Pair</th><th class="right">Wager</th><th>Result</th>
-        <th class="right">Run Spend</th><th class="right">Run P&L</th>
+        <th class="right">Sunk</th><th class="right">Run P&L</th>
       </tr></thead><tbody></tbody></table>
     </div>
-    <div class="note">Newest on top. Updates every ~5 minutes when the bot scrapes the next draws. A hit banks the profit and the very next draw starts chasing the current top overdue pair.</div>
+    <div class="note">Newest on top. The bot scrapes every ~2.5 minutes; this page re-reads the freshest data every 60 seconds. A hit banks the profit and the very next draw starts chasing the current top overdue pair.</div>
   </section>
 
   <section>
@@ -94,8 +112,8 @@ canvas{width:100%;height:160px}
     <canvas id="cumChart" height="160"></canvas>
     <div class="scrollbox" style="margin-top:12px">
       <table id="days"><thead><tr>
-        <th>Date</th><th class="right">Draws</th><th class="right">Runs</th><th class="right">Hits</th>
-        <th class="right">Staked</th><th class="right">Won</th><th class="right">P&L</th>
+        <th>Date</th><th class="right">Draws</th><th class="right">Wagers</th><th class="right">Runs</th><th class="right">Hits</th>
+        <th class="right">Staked</th><th class="right">Won</th><th class="right">P&L</th><th class="right">Peak Exposure</th>
       </tr></thead><tbody></tbody></table>
     </div>
   </section>
@@ -104,8 +122,8 @@ canvas{width:100%;height:160px}
     <h2>Closed Runs</h2>
     <div class="scrollbox">
       <table id="runs"><thead><tr>
-        <th>Pair</th><th>Result</th><th class="right">Draws</th><th class="right">Spend</th>
-        <th class="right">P&L</th><th>Games</th>
+        <th>Pair</th><th>Result</th><th class="right">Draws</th><th class="right">Sunk</th>
+        <th class="right">Day P&L</th><th class="right">Lifetime P&L</th><th>Games</th>
       </tr></thead><tbody></tbody></table>
     </div>
   </section>
@@ -120,8 +138,14 @@ canvas{width:100%;height:160px}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const fmt = (n) => (n > 0 ? '+' : '') + '$' + Math.abs(n);
+const fmt = (n) => (n > 0 ? '+' : '') + '$' + Math.abs(n).toLocaleString();
 const fmtPair = (p) => p ? (p[0] + ' - ' + p[1]) : '—';
+// freshest committed data: GitHub raw (CORS-open) beats the Vercel deploy
+// queue; fall back to the deployed copy if raw is unreachable.
+const SOURCES = [
+  ['https://raw.githubusercontent.com/thesahilsinh/ct-keno/main/data/live.json', 'github'],
+  ['data/live.json', 'vercel'],
+];
 let LIVE = null;
 
 function setStatus(ok, msg, pulse) {
@@ -129,16 +153,55 @@ function setStatus(ok, msg, pulse) {
   $('status').textContent = msg;
 }
 
+async function fetchLive() {
+  for (const [url, src] of SOURCES) {
+    try {
+      const r = await fetch(url, {cache: 'no-store'});
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (j && j.stats) { j._src = src; return j; }
+    } catch (e) { /* try next */ }
+  }
+  throw new Error('no data source reachable');
+}
+
+async function fetchFresh() {
+  // same-origin serverless proxy -> official API (the API itself has no CORS)
+  try {
+    const r = await fetch('/api/latest', {cache: 'no-store'});
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) { return null; }
+}
+
+function renderFresh(fresh) {
+  const el = $('fresh');
+  if (!fresh || !fresh.ok || !LIVE) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  const official = fresh.newest_game;
+  const mine = LIVE.last_game;
+  const lag = (official != null && mine != null) ? official - mine : null;
+  const lastT = fresh.draws && fresh.draws[0] && fresh.draws[0].time
+    ? new Date(fresh.draws[0].time).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
+    : '—';
+  el.innerHTML =
+    '<span>official latest draw <b>#' + (official ?? '—') + '</b> at <b>' + lastT + ' ET</b></span>' +
+    '<span>session played through <b>#' + (mine ?? '—') + '</b></span>' +
+    (lag == null ? '' : '<span class="lag ' + (lag > 2 ? 'neg' : 'pos') + '">behind by <b>' + lag + '</b> draw' + (lag === 1 ? '' : 's') + '</span>') +
+    '<span class="muted">draws post every 4 min · scrape every ~2.5 min</span>';
+}
+
 function renderCards() {
   const s = LIVE.stats;
-  const cur = LIVE.current || {};
   const cards = [
     ['Session P&L', fmt(s.pnl), s.pnl > 0 ? 'pos' : (s.pnl < 0 ? 'neg' : '')],
-    ['Staked', '$' + s.staked, ''],
-    ['Won Back', '$' + s.won, ''],
-    ['Draws Played', s.draws_played, ''],
+    ['Staked', '$' + s.staked.toLocaleString(), ''],
+    ['Won Back', '$' + s.won.toLocaleString(), ''],
+    ['Draws / Wagers', s.draws_played + ' / ' + (s.wagers || s.draws_played), ''],
     ['Runs / Hits', s.runs + ' / ' + s.hits, ''],
-    ['Max Ladder Losses', s.exhausted, ''],
+    ['Exhaustions', s.exhausted, ''],
+    ['Max Wager', '$' + s.max_wager.toLocaleString(), 'dbl'],
+    ['Open Exposure', '$' + s.open_exposure.toLocaleString(), s.open_exposure >= 400 ? 'neg' : ''],
   ];
   $('cards').innerHTML = cards.map(([k, v, cls]) =>
     '<div class="card"><div class="k">' + k + '</div>' +
@@ -147,47 +210,53 @@ function renderCards() {
     (LIVE.last_draw_time ? ' · last draw ' + String(LIVE.last_draw_time).replace('T', ' ').slice(0, 16) : '');
 }
 
-function renderNow() {
-  const cur = LIVE.current;
-  let box;
-  if (!cur) {
-    box = '<div class="pair-big">—</div><div class="muted">waiting for the next draw after the anchor — the session starts with the site\'s current top overdue pair</div>';
-  } else if (cur.status === 'chasing') {
-    box = '<div class="pair-big">' + fmtPair(cur.pair) + '</div>' +
-      '<div class="nowgrid">' +
-      nowCell('current wager', '$' + cur.wager) +
-      nowCell('this tier', cur.draws_at_tier + ' of ' +
-        (cur.draws_at_tier + cur.tier_draws_left) + ' draws') +
-      nowCell('run spend so far', '$' + cur.spend) +
-      nowCell('profit if it hits now', '+' + '$' + cur.profit_if_hit) +
-      (cur.next_wager ? nowCell('escalates to', '$' + cur.next_wager) : '') +
-      '</div>';
-  } else {
-    box = '<div class="pair-big">' + fmtPair(cur.pair) + '</div>' +
-      '<div class="muted">fresh $1 ladder — this pair just exhausted a full ladder, the chase continues at $1</div>';
-  }
-  $('nowBox').innerHTML = box;
-
-  let html = '';
-  const tierNow = cur ? cur.tier : -1;
-  LIVE.ladder.forEach((t, i) => {
-    let cls = '';
-    if (cur && cur.status === 'chasing') {
-      if (i < tierNow) cls = 'done';
-      if (i === tierNow) cls = 'live';
-    }
-    html += '<div class="tier ' + cls + '"><b>$' + t.wager + '</b>' +
-      '<span class="sub">× ' + t.draws + ' · invest $' + t.cum_spend +
-      ' · win $' + t.profit_min + '–$' + t.profit_max + '</span></div>';
-  });
-  $('ladder').innerHTML = html;
-  $('ladderNote').textContent = 'Wagers ' + LIVE.config.tiers.join(', ') +
-    ' only. Each tier runs only while a hit stays strictly profitable: ' +
-    'spend-so-far + j×w < $11×w. Full ladder = 33 draws, $200.';
+function cell(k, v) {
+  return '<div class="nowcell"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>';
 }
 
-function nowCell(k, v) {
-  return '<div class="nowcell"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>';
+function renderNow() {
+  const act = LIVE.active_runs || [];
+  let html = '';
+  if (!act.length) {
+    html = '<div class="runbox"><div class="pair-big">—</div>' +
+      '<div class="muted">waiting for the next draw after the anchor</div></div>';
+  } else {
+    html = act.map(r => {
+      const isDbl = r.doubling;
+      const tierDraws = r.draws_at_tier + r.tier_draws_left;
+      const pct = Math.round(100 * r.draws_at_tier / Math.max(tierDraws, 1));
+      return '<div class="runbox' + (isDbl ? ' dbl' : '') + '">' +
+        '<div class="pair-big">' + fmtPair(r.pair) + '</div>' +
+        (isDbl ? '<div class="muted" style="font-size:12px">DOUBLING — base ladder exhausted; chasing until this pair hits</div>' : '') +
+        '<div class="nowgrid">' +
+        cell('wager', '$' + r.wager.toLocaleString()) +
+        cell('tier draw', (r.draws_at_tier + 1) + ' of ' + tierDraws) +
+        cell('sunk this run', '$' + r.cum_spend.toLocaleString()) +
+        cell('profit if HIT', '+$' + r.profit_if_hit.toLocaleString()) +
+        (r.next_wager ? cell('next wager', '$' + r.next_wager.toLocaleString()) : '') +
+        '</div>' +
+        '<div class="minibar"><i style="width:' + pct + '%"></i></div>' +
+        '</div>';
+    }).join('');
+  }
+  $('nowBox').innerHTML = html;
+
+  // ladder strip: highlight every tier currently live across all runs
+  const liveTiers = new Set(act.map(r => r.tier));
+  let html2 = '';
+  LIVE.ladder.forEach((t, i) => {
+    const isLive = liveTiers.has(i);
+    const anyBefore = act.some(r => r.tier > i);
+    const cls = (t.doubling ? 'dbl ' : '') + (isLive ? 'live' : (anyBefore ? 'done' : ''));
+    html2 += '<div class="tier ' + cls + '"><b>$' + t.wager.toLocaleString() + '</b>' +
+      '<span class="sub">× ' + t.draws + ' · invest $' + t.cum_spend.toLocaleString() +
+      ' · min win +$' + t.profit_min.toLocaleString() + '</span></div>';
+  });
+  $('ladder').innerHTML = html2;
+  $('ladderNote').textContent = 'Base ladder resets daily at $1. When a run exhausts it, ' +
+    'the same pair keeps playing on doubling tiers ($40×5, $80×5, $160×5, … — no limit) ' +
+    'until it hits, AND a parallel run opens on the current top overdue pair. ' +
+    'Every tier is strictly profitable on a hit.';
 }
 
 function renderEvents() {
@@ -199,15 +268,17 @@ function renderEvents() {
     }
     if (e.result === 'exhausted') {
       return '<tr class="exhausted"><td>#' + e.game + '</td><td>' + fmtPair(e.pair) + '</td>' +
-        '<td class="right muted">—</td><td>ladder exhausted (−$' + e.run_spend + ') — same pair, fresh $1 ladder</td>' +
-        '<td class="right">$' + e.run_spend + '</td><td class="right neg">' + fmt(e.run_pnl) + '</td>' +
-        '<td class="right muted">—</td></tr>';
+        '<td class="right muted">—</td><td>base ladder exhausted — doubling + parallel pair opened</td>' +
+        '<td class="right">$' + e.cum_spend.toLocaleString() + '</td>' +
+        '<td class="right neg">' + fmt(e.run_pnl) + '</td></tr>';
     }
-    const cls = e.hit ? 'hit' : '';
-    const res = e.hit ? '<span class="pos">HIT — prize $' + e.prize + '</span>' : '<span class="muted">miss</span>';
+    const cls = e.hit ? 'hit' : (e.doubling ? 'dbl' : '');
+    const res = e.hit
+      ? '<span class="pos">HIT — prize $' + e.prize.toLocaleString() + '</span>'
+      : '<span class="muted">miss</span>';
     return '<tr class="' + cls + '"><td>#' + e.game + '</td><td>' + fmtPair(e.pair) + '</td>' +
-      '<td class="right">$' + e.wager + '</td><td>' + res + '</td>' +
-      '<td class="right">$' + e.run_spend + '</td>' +
+      '<td class="right">$' + e.wager.toLocaleString() + '</td><td>' + res + '</td>' +
+      '<td class="right">$' + e.cum_spend.toLocaleString() + '</td>' +
       '<td class="right ' + (e.run_pnl >= 0 ? 'pos' : 'neg') + '">' + fmt(e.run_pnl) + '</td></tr>';
   });
   tb.innerHTML = rows.join('');
@@ -215,15 +286,19 @@ function renderEvents() {
 
 function renderRuns() {
   const tb = $('runs').querySelector('tbody');
+  const nBase = (LIVE.config.tiers || []).length;
   const rows = LIVE.runs.slice().reverse().map(r => {
     const cls = r.result === 'hit' ? 'hit' : 'exhausted';
+    const isDbl = r.end_tier >= nBase;
     const res = r.result === 'hit'
       ? '<span class="pos">hit — banked</span>'
-      : '<span class="neg">exhausted — chased again at $1</span>';
-    return '<tr class="' + cls + '"><td><b>' + fmtPair(r.pair) + '</b></td><td>' + res + '</td>' +
-      '<td class="right">' + r.draws + '</td><td class="right">$' + r.spend + '</td>' +
+      : '<span class="neg">abandoned (safety valve)</span>';
+    return '<tr class="' + cls + (isDbl ? ' dbl' : '') + '"><td><b>' + fmtPair(r.pair) + '</b></td>' +
+      '<td>' + res + '</td><td class="right">' + r.draws_total + '</td>' +
+      '<td class="right">$' + r.cum_spend.toLocaleString() + '</td>' +
       '<td class="right ' + (r.pnl > 0 ? 'pos' : 'neg') + '">' + fmt(r.pnl) + '</td>' +
-      '<td class="num">#' + r.first_game + ' → #' + r.last_game + '</td></tr>';
+      '<td class="right ' + (r.run_pnl_total > 0 ? 'pos' : 'neg') + '">' + fmt(r.run_pnl_total) + '</td>' +
+      '<td class="num">#' + (r.first_game || '—') + ' → #' + (r.last_game || '—') + '</td></tr>';
   });
   tb.innerHTML = rows.join('');
 }
@@ -232,9 +307,12 @@ function renderDays() {
   const tb = $('days').querySelector('tbody');
   const rows = LIVE.days.slice().reverse().map(d =>
     '<tr><td>' + d.date + '</td><td class="right">' + d.draws_played + '</td>' +
+    '<td class="right">' + (d.wagers || d.draws_played) + '</td>' +
     '<td class="right">' + d.runs + '</td><td class="right">' + d.hits + '</td>' +
-    '<td class="right">$' + d.staked + '</td><td class="right">$' + d.won + '</td>' +
-    '<td class="right ' + (d.pnl > 0 ? 'pos' : 'neg') + '">' + fmt(d.pnl) + '</td></tr>');
+    '<td class="right">$' + d.staked.toLocaleString() + '</td>' +
+    '<td class="right">$' + d.won.toLocaleString() + '</td>' +
+    '<td class="right ' + (d.pnl > 0 ? 'pos' : 'neg') + '">' + fmt(d.pnl) + '</td>' +
+    '<td class="right">$' + (d.peak_exposure || 0).toLocaleString() + '</td></tr>');
   tb.innerHTML = rows.join('');
 }
 
@@ -246,15 +324,15 @@ function renderChart() {
   const ctx = cv.getContext('2d');
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, W, H);
-  // cumulative realized session P&L after each event (events oldest-first):
-  //  * miss        -> no realized movement (wager is inside its run)
-  //  * hit         -> run closes: prize - run_spend realized now
-  //  * exhausted   -> run closes at -run_spend realized now
+  // cumulative realized session P&L after each closing event:
+  //  miss      -> no realized movement (wager stays inside its run)
+  //  hit       -> run closes: prize - run_spend realized now
+  //  exhausted -> base ladder sunk; the run continues doubling (NOT realized
+  //               yet — the loss realizes when the run finally closes)
   let cum = 0;
   const pts = [0];
   LIVE.events.forEach(e => {
-    if (e.result === 'exhausted') cum -= e.run_spend;
-    else if (e.hit) cum += e.prize - e.run_spend;
+    if (e.hit) cum += e.prize - e.run_spend;
     pts.push(cum);
   });
   const lo = Math.min(...pts), hi = Math.max(...pts);
@@ -270,41 +348,51 @@ function renderChart() {
   ctx.stroke();
   ctx.fillStyle = cum >= 0 ? '#46c878' : '#ff5a4d';
   ctx.font = 'bold 13px sans-serif';
-  ctx.fillText(fmt(cum), Math.min(x(pts.length - 1) + 6, W - 70), Math.max(y(pts[pts.length - 1]) - 6, 14));
+  ctx.fillText(fmt(cum), Math.min(x(pts.length - 1) + 6, W - 90), Math.max(y(pts[pts.length - 1]) - 6, 14));
 }
 
 function renderHonest() {
   const cfg = LIVE.config;
+  const s = LIVE.stats;
   const rows = [
     ['Payout', '$1 → both hit → $11 back (profit $10)'],
     ['True odds', '1 in 16.6 (' + cfg.p_hit_pct + '%) — fair pay would be $16.63'],
     ['House edge', '33.9% of everything staked, long-run'],
-    ['What the ladder does', 'locks every hit at +$1 to +$100 profit; caps each miss streak at −$200'],
-    ['What it cannot do', 'make a losing game positive — "overdue" pairs hit at the same 6.01% as any other pair'],
+    ['What the ladder does', 'every run ends profitable: worst hit banks +$1..+$20 (base) or +$40, +$80, … (doubling)'],
+    ['What it cannot do', 'change the 6.01% hit odds — the cost just moves into the bankroll'],
+    ['Session risk so far', 'peak exposure $' + s.peak_exposure.toLocaleString() +
+      ' · max wager $' + s.max_wager.toLocaleString() +
+      (s.max_run_sunk ? ' · deepest run $' + s.max_run_sunk.toLocaleString() : '') +
+      ' · max drawdown ' + fmt(s.max_drawdown)],
   ];
   $('honestBox').innerHTML = rows.map(([k, v]) =>
     '<div class="evrow"><span class="muted">' + k + '</span><span>' + v + '</span></div>').join('');
   $('honestNote').textContent =
-    'Session started at draw #' + LIVE.start_game + ' and runs forward forever, replaying each new draw as it\'s scraped. ' +
-    'The /sim page shows the same tactic over the full 138-day history: −$45.7k over $136.6k staked (−33.5%). ' +
-    'This page will drift around that same slope. Small sessions can finish ahead — that\'s variance, not edge.';
+    'Session started at draw #' + LIVE.start_game + ' and runs forward forever. ' +
+    'The doubling rule makes every run end in profit ON PAPER — the catch is the bankroll: ' +
+    'real history contains pair gaps up to 918 draws, where the ladder would reach wagers ' +
+    'of $1.3 BILLION before the hit. Over the full 138-day replay this tactic needed a $9.4 ' +
+    'billion bankroll on its deepest run. No finite bankroll survives that in the long run — ' +
+    'the /sim page shows the same ledger. A safety valve stops any run after 1,000 draws ' +
+    '(chance ~1e-27) but the exposure until then is the real risk you are watching here.';
 }
 
 async function load() {
   try {
-    const r = await fetch('data/live.json', {cache: 'no-store'});
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    LIVE = await r.json();
+    const [live, fresh] = await Promise.all([fetchLive(), fetchFresh()]);
+    LIVE = live;
+    const src = live._src === 'github' ? 'github (freshest commit)' : 'vercel deploy';
     setStatus(true, 'live · updated ' + (LIVE.last_draw_time
       ? String(LIVE.last_draw_time).replace('T', ' ').slice(0, 16) + ' ET'
-      : '—'), true);
+      : '—') + ' · via ' + src, true);
+    renderFresh(fresh);
     renderCards(); renderNow(); renderEvents(); renderRuns(); renderDays(); renderChart(); renderHonest();
   } catch (e) {
     setStatus(false, 'failed: ' + e.message);
   }
 }
 load();
-setInterval(load, 2 * 60 * 1000);
+setInterval(load, 60 * 1000);
 </script>
 </body>
 </html>

@@ -26,26 +26,42 @@ Replays your exact tactic against every real draw, day by day:
 
 * **Pick** the top pair from the site's **Overdue** section (same algorithm the
   dashboard uses over today's draws so far).
-* **Chase** it with the ladder $1×10 → $2×5 → $3×4 → $4×2 → $5×2 → $10×5 →
-  $20×5 (33 draws max, $200 cap). Each tier allows only as many draws as keep
-  a hit **strictly profitable** (`spend + j·w < 11·w`), e.g. after 10 misses
-  at $1 you're $10 down, and a $2 hit pays $22 → +$2.
+* **Chase** it with the base ladder $1×10 → $2×5 → $3×4 → $4×2 → $5×2 →
+  $10×5 → $20×5 (33 draws, $200). Each tier allows only as many draws as keep
+  a hit **strictly profitable** (`spend + j·w < 11·w`).
+* **Base ladder exhausted** → the same pair **keeps doubling**: $40×5, $80×5,
+  $160×5, … (no limit) until it hits — every hit banks ≥ +$w. **AND** a
+  parallel run opens on the current top overdue pair at $1.
 * **Hit** → bank the profit, pick the next overdue pair, restart at $1.
-* **Ladder exhausted without a hit** → keep chasing the SAME pair with a fresh
-  $1 ladder (the goal is to hit that number).
-* **Daily reset**: the ladder restarts at $1 at the first draw of each day.
-  An un-hit pair carries across midnight.
-* **P&L saved per day** in `data/sim.json` (the ledger on the page) — past
-  days are frozen, today is recomputed every scrape.
+* **Daily reset**: base ladders restart at $1 at each day's first draw;
+  un-hit pairs (and doubling state) carry across midnight.
+* **P&L saved per day** in `data/sim.json` — past days frozen, today
+  recomputed every scrape.
 
-Files: engine `sim.py`, page `sim.html`, data `data/sim.json`, tests
-`tests/test_sim.py` (`python tests/test_sim.py`).
+## The live session (`/live`)
 
-The honest math is on the page too: a specific pair hits with p = 6.01%
-(1 in 16.6 draws), a fair payout would be $16.63, the game pays $11 →
-house edge 33.9% of turnover. Over the 138-day backfill this tactic staked
-$136.6k and lost $45.7k (−33.5% ROI). The ladder shapes **when** you lose,
-not **whether**.
+The same tactic as a session that started "from now" (anchored at draw
+#1197798) and runs forward forever:
+
+* a "Playing Right Now" card per active run (pair, wager, tier progress,
+  profit-if-hit) — doubling runs shown in purple;
+* a freshness bar comparing the official site's latest draw with the
+  session's position (same-origin `/api/latest` proxies the official API,
+  which has no CORS);
+* session log, closed runs, per-day P&L, cumulative chart;
+* data read from the freshest GitHub commit (raw.githubusercontent), falling
+  back to the Vercel deploy.
+
+**The honest math of doubling.** Every run ends profitable *on paper*, but the
+bankroll requirement is unbounded: pair gaps up to **918 draws** exist in real
+history — a doubling ladder chasing one reaches wagers of **$1.3 billion**
+and a peak exposure of **$8.05 billion** (the deepest run in the 138-day
+replay sunk **$9.4 billion** before its hit). The pages track `max_wager`,
+`peak_exposure`, `max_run_sunk`, and `max_drawdown` so the true cost curve is
+visible, not hidden behind the per-run profit guarantee.
+
+Files: engine `sim.py`, pages `sim.html` / `live.html`, data `data/sim.json`
+/ `data/live.json`, tests `tests/test_sim.py` (`python tests/test_sim.py`).
 
 ## Setup
 ```bash
