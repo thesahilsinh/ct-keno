@@ -40,6 +40,7 @@
     const results = await Promise.allSettled([
       grab(RAW_BASE + name),
       grab(PROXY_BASE + name),
+      grab('data/' + name),      // last resort: deployed copy (may be stale)
     ]);
     let best = null;
     for (const res of results) {
