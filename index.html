@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/fresh.js"></script>
 <title>CT Keno — Today's Analysis</title>
 <style>
 :root{--bg:#0f1419;--panel:#1a212b;--panel2:#222c39;--ink:#e8eef5;--muted:#8aa0b5;
@@ -397,7 +398,7 @@ document.getElementById('pastDraw').addEventListener('keydown', e=>{ if(e.key===
   };
 });
 
-fetch('data/draws.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{
+window.freshData.get('draws.json', 'newest_game').then(d=>{
   D = d;
   curAnalysis = d.today_analysis;
   document.getElementById('dot').className = 'dot on';
@@ -406,7 +407,7 @@ fetch('data/draws.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{
   renderToday(d.today_trend);
   renderProportion(d.proportion);
   // load compact history for past-draw analysis
-  fetch('data/history.json',{cache:'no-store'}).then(r=>r.json()).then(h=>{
+  window.freshData.get('history.json', 'newest').then(h=>{
     H = h;
     // populate datalist with a few recent game numbers as hints
     const dl = document.getElementById('drawList');

@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/fresh.js"></script>
 <title>CT Keno — Live Session</title>
 <style>
 :root{
@@ -140,12 +141,6 @@ canvas{width:100%;height:160px}
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => (n > 0 ? '+' : '') + '$' + Math.abs(n).toLocaleString();
 const fmtPair = (p) => p ? (p[0] + ' - ' + p[1]) : '—';
-// freshest committed data: GitHub raw (CORS-open) beats the Vercel deploy
-// queue; fall back to the deployed copy if raw is unreachable.
-const SOURCES = [
-  ['https://raw.githubusercontent.com/thesahilsinh/ct-keno/main/data/live.json', 'github'],
-  ['data/live.json', 'vercel'],
-];
 let LIVE = null;
 
 function setStatus(ok, msg, pulse) {
@@ -154,15 +149,9 @@ function setStatus(ok, msg, pulse) {
 }
 
 async function fetchLive() {
-  for (const [url, src] of SOURCES) {
-    try {
-      const r = await fetch(url, {cache: 'no-store'});
-      if (!r.ok) continue;
-      const j = await r.json();
-      if (j && j.stats) { j._src = src; return j; }
-    } catch (e) { /* try next */ }
-  }
-  throw new Error('no data source reachable');
+  const j = await window.freshData.get('live.json', 'last_game');
+  j._src = j._src || 'freshest source';
+  return j;
 }
 
 async function fetchFresh() {
@@ -381,10 +370,9 @@ async function load() {
   try {
     const [live, fresh] = await Promise.all([fetchLive(), fetchFresh()]);
     LIVE = live;
-    const src = live._src === 'github' ? 'github (freshest commit)' : 'vercel deploy';
     setStatus(true, 'live · updated ' + (LIVE.last_draw_time
       ? String(LIVE.last_draw_time).replace('T', ' ').slice(0, 16) + ' ET'
-      : '—') + ' · via ' + src, true);
+      : '—') + ' · through draw #' + (LIVE.last_game || '—'), true);
     renderFresh(fresh);
     renderCards(); renderNow(); renderEvents(); renderRuns(); renderDays(); renderChart(); renderHonest();
   } catch (e) {
